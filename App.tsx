@@ -293,5 +293,5 @@ const App: React.FC = () => {
   );
 };
 
-export default App;import React from 'react';
+export default App;
 
