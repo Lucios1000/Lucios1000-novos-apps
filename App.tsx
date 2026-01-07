@@ -609,6 +609,8 @@ const App: React.FC = () => {
       const prev = prevMonth ? proj[prevMonth - 1] : null;
       const opCosts = current.variableCosts + current.fixedCosts + current.tech + current.marketing;
       const opCostsPrev = prev ? prev.variableCosts + prev.fixedCosts + prev.tech + prev.marketing : null;
+      const ebitdaMargin = current.takeRateRevenue > 0 ? (current.ebitda / current.takeRateRevenue) * 100 : 0;
+      const ebitdaMarginPrev = prev && prev.takeRateRevenue > 0 ? (prev.ebitda / prev.takeRateRevenue) * 100 : null;
       return {
         month,
         drivers: { value: current.drivers, delta: formatDelta(current.drivers, prev?.drivers) },
@@ -618,11 +620,14 @@ const App: React.FC = () => {
         taxes: { value: current.taxes, delta: formatDelta(current.taxes, prev?.taxes) },
         opCosts: { value: opCosts, delta: formatDelta(opCosts, opCostsPrev) },
         profit: { value: current.netProfit, delta: formatDelta(current.netProfit, prev?.netProfit) },
+        ebitdaMargin: { value: ebitdaMargin, delta: formatDelta(ebitdaMargin, ebitdaMarginPrev) },
       };
     };
 
     const semestralComparisons = Object.values(ScenarioType).map((t) => {
       const proj = scenarioProjections[t];
+      const paybackIdx = proj.findIndex((r) => r.accumulatedProfit > 0);
+      const paybackMonth = paybackIdx !== -1 ? paybackIdx + 1 : null;
       const blocoJunho = [
         buildCardData(proj, 6),
         buildCardData(proj, 18, 6),
@@ -633,18 +638,27 @@ const App: React.FC = () => {
         buildCardData(proj, 24, 12),
         buildCardData(proj, 36, 24),
       ];
-      return { type: t as ScenarioType, blocoJunho, blocoDez };
+      return { type: t as ScenarioType, blocoJunho, blocoDez, paybackMonth };
     });
 
-    const renderMetricRow = (label: string, data: { value: number; delta: number | null }) => (
-      <div className="flex items-center justify-between text-xs text-slate-200">
-        <span className="text-slate-400">{label}</span>
-        <div className="flex items-center gap-2">
-          <span className="font-mono font-semibold">{label.includes('Usuários') || label.includes('Frota') ? formatNumber(data.value) : formatCurrency(data.value)}</span>
-          <DeltaBadge delta={data.delta} />
+    const renderMetricRow = (label: string, data: { value: number; delta: number | null }) => {
+      const isPeople = label.includes('Usuários') || label.includes('Frota');
+      const isPercent = label.toLowerCase().includes('margem');
+      const valueNode = isPercent
+        ? <span className="font-mono font-semibold">{data.value.toFixed(1)}%</span>
+        : isPeople
+          ? <span className="font-mono font-semibold">{formatNumber(data.value)}</span>
+          : <span className="font-mono font-semibold">{formatCurrency(data.value)}</span>;
+      return (
+        <div className="flex items-center justify-between text-xs text-slate-200">
+          <span className="text-slate-400">{label}</span>
+          <div className="flex items-center gap-2">
+            {valueNode}
+            <DeltaBadge delta={data.delta} />
+          </div>
         </div>
-      </div>
-    );
+      );
+    };
     return (
       <div className="space-y-6">
         <h3 className="text-sm font-black uppercase text-yellow-500">Comparativo Semestral (Cards)</h3>
@@ -656,7 +670,10 @@ const App: React.FC = () => {
                   <div className="text-[10px] uppercase text-slate-400 font-black">{SCENARIO_LABEL[s.type]}</div>
                   <div className="text-xs text-slate-500">Curva S + MPD 10,1</div>
                 </div>
-                <span className="text-[10px] px-2 py-1 rounded-full bg-slate-800 text-yellow-400 font-black">36m</span>
+                <div className="text-right">
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-slate-800 text-yellow-400 font-black block">36m</span>
+                  <div className="text-[10px] text-slate-400 mt-1">Payback: {s.paybackMonth ? `M${s.paybackMonth}` : '>36m'}</div>
+                </div>
               </div>
 
               {/* 1º Semestre (Junho) */}
@@ -676,6 +693,7 @@ const App: React.FC = () => {
                         {renderMetricRow('Take Rate', card.takeRate)}
                         {renderMetricRow('Impostos', card.taxes)}
                         {renderMetricRow('Custos Operacionais', card.opCosts)}
+                        {renderMetricRow('Margem EBITDA', card.ebitdaMargin)}
                         {renderMetricRow('Lucro Líquido', card.profit)}
                       </div>
                     </div>
@@ -700,6 +718,7 @@ const App: React.FC = () => {
                         {renderMetricRow('Take Rate', card.takeRate)}
                         {renderMetricRow('Impostos', card.taxes)}
                         {renderMetricRow('Custos Operacionais', card.opCosts)}
+                        {renderMetricRow('Margem EBITDA', card.ebitdaMargin)}
                         {renderMetricRow('Lucro Líquido', card.profit)}
                       </div>
                     </div>
