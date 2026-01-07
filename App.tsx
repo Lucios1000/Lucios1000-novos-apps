@@ -378,16 +378,44 @@ const App: React.FC = () => {
   };
 
   const renderDrivers = () => {
+    const MPD = 10.1; // Média de Produtividade Diária
     const rows = projections.slice(0, 12).map((r) => {
       const target = Math.max(50, Math.round(r.users / 200));
       const cov = r.users > 0 ? (r.drivers * 200) / r.users : 0;
       const gap = r.drivers - target;
-      const utilizacao = (r.rides / (r.drivers * 0.85 * 30 * 20)) * 100;
-      return { ...r, target, cov, gap, utilizacao };
+      const supplyCapacity = r.supplyCapacity || (r.drivers * MPD * 30.5);
+      const demandedRides = r.demandedRides || r.rides;
+      const utilizacao = supplyCapacity > 0 ? (r.rides / supplyCapacity) * 100 : 0;
+      const isBottleneck = r.isSupplyBottleneck || false;
+      const demandGap = r.demandGap || 0;
+      return { ...r, target, cov, gap, supplyCapacity, demandedRides, utilizacao, isBottleneck, demandGap };
     });
+
+    const bottleneckMonths = rows.filter(r => r.isBottleneck).length;
+    const avgUtilization = rows.reduce((a, r) => a + r.utilizacao, 0) / rows.length;
+    const maxGap = Math.max(...rows.map(r => r.demandGap));
+
     return (
       <div className="space-y-3">
-        <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">Análise Mensal de Gap & Capacidade</h3>
+        <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">Análise Mensal de Gap & Capacidade (MPD 10,1)</h3>
+        
+        {/* Alertas de Gargalo */}
+        {bottleneckMonths > 0 && (
+          <div className="bg-gradient-to-r from-red-500/20 to-orange-500/10 border border-red-500/40 p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <div className="text-sm font-bold text-red-300">ALERTA: Gargalo de Oferta Detectado!</div>
+                <div className="text-xs text-slate-300 mt-1">
+                  <strong>{bottleneckMonths} meses</strong> com frota insuficiente. 
+                  Gap máximo: <strong>{Math.round(maxGap).toLocaleString('pt-BR')} corridas/mês</strong>.
+                  Com <strong>+10 motoristas/mês</strong>, será necessário <strong>{Math.ceil(maxGap / (MPD * 30.5))} motoristas adicionais</strong> para atender demanda.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="card-gradient border border-slate-700/40 rounded-xl overflow-hidden">
           <table className="w-full text-xs text-slate-200">
             <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-[7px] uppercase text-slate-400 font-bold">
@@ -395,48 +423,60 @@ const App: React.FC = () => {
                 <th className="p-2 text-left">Mês</th>
                 <th className="p-2 text-right">Usuários</th>
                 <th className="p-2 text-right">Frota</th>
-                <th className="p-2 text-right">Alvo</th>
-                <th className="p-2 text-right">Gap</th>
-                <th className="p-2 text-right">Cobertura</th>
-                <th className="p-2 text-right">Corridas</th>
-                <th className="p-2 text-right">Cap. Máx</th>
-                <th className="p-2 text-right">Utiliz.</th>
-                <th className="p-2 text-right">Rides/Driver</th>
+                <th className="p-2 text-right">Demanda</th>
+                <th className="p-2 text-right">Capacidade</th>
+                <th className="p-2 text-right">Realizado</th>
+                <th className="p-2 text-right">Gap Corridas</th>
+                <th className="p-2 text-right">Utiliz. MPD</th>
+                <th className="p-2 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40">
               {rows.map((r, idx) => (
-                <tr key={r.month} className={idx % 2 === 0 ? 'bg-slate-900/30' : ''}>
+                <tr key={r.month} className={`${idx % 2 === 0 ? 'bg-slate-900/30' : ''} ${r.isBottleneck ? 'bg-red-900/10' : ''}`}>
                   <td className="p-2 font-bold text-slate-100">M{r.month}</td>
                   <td className="p-2 text-right"><NumberDisplay value={r.users} /></td>
                   <td className="p-2 text-right"><NumberDisplay value={r.drivers} /></td>
-                  <td className="p-2 text-right text-slate-400"><NumberDisplay value={r.target} /></td>
-                  <td className={`p-2 text-right ${r.gap >= 0 ? 'text-green-400' : 'text-red-400'}`}><NumberDisplay value={r.gap} /></td>
-                  <td className="p-2 text-right text-yellow-400">{r.cov.toFixed(2)}x</td>
+                  <td className="p-2 text-right text-blue-400"><NumberDisplay value={Math.round(r.demandedRides)} /></td>
+                  <td className="p-2 text-right text-green-400"><NumberDisplay value={Math.round(r.supplyCapacity)} /></td>
                   <td className="p-2 text-right"><NumberDisplay value={r.rides} /></td>
-                  <td className="p-2 text-right text-slate-400">{Math.round(r.drivers * 0.85 * 30 * 20).toLocaleString('pt-BR')}</td>
-                  <td className={`p-2 text-right ${r.utilizacao > 80 ? 'text-orange-400' : 'text-green-400'}`}>{r.utilizacao.toFixed(0)}%</td>
-                  <td className="p-2 text-right text-slate-300"><NumberDisplay value={r.ridesPerDriver} /></td>
+                  <td className={`p-2 text-right ${r.demandGap > 0 ? 'text-red-400 font-bold' : 'text-green-400'}`}>
+                    {r.demandGap > 0 ? `-${Math.round(r.demandGap).toLocaleString('pt-BR')}` : '✓'}
+                  </td>
+                  <td className={`p-2 text-right ${r.utilizacao > 90 ? 'text-red-400' : r.utilizacao > 70 ? 'text-orange-400' : 'text-green-400'}`}>
+                    {r.utilizacao.toFixed(1)}%
+                  </td>
+                  <td className="p-2 text-center">
+                    {r.isBottleneck ? <span className="text-red-400 font-bold">🔴 BOTTLENECK</span> : <span className="text-green-400">✓</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="card-gradient bg-gradient-to-br from-blue-500/10 to-indigo-500/5 border border-slate-700/40 p-3 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">Gap Mínimo (M36)</div>
-            <div className="text-lg font-black text-white"><NumberDisplay value={rows[rows.length - 1].gap} /></div>
-            <div className="text-[10px] text-slate-400 mt-1">Frota vs Alvo</div>
+            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">MPD (Produtividade)</div>
+            <div className="text-lg font-black text-blue-400">{MPD} corridas/dia</div>
+            <div className="text-[10px] text-slate-400 mt-1">30% Full + 40% Part + 30% Espor.</div>
           </div>
           <div className="card-gradient bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-slate-700/40 p-3 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">Cobertura Média 12m</div>
-            <div className="text-lg font-black text-green-400">{(rows.slice(0, 12).reduce((a, r) => a + r.cov, 0) / 12).toFixed(2)}x</div>
-            <div className="text-[10px] text-slate-400 mt-1">Motoristas por 200 usuários</div>
+            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">Utilização Média (12m)</div>
+            <div className="text-lg font-black text-green-400">{avgUtilization.toFixed(1)}%</div>
+            <div className="text-[10px] text-slate-400 mt-1">Eficiência da frota</div>
+          </div>
+          <div className={`card-gradient bg-gradient-to-br ${bottleneckMonths > 0 ? 'from-red-500/10 to-orange-500/5' : 'from-green-500/10 to-emerald-500/5'} border border-slate-700/40 p-3 rounded-lg`}>
+            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">Meses com Gargalo</div>
+            <div className={`text-lg font-black ${bottleneckMonths > 0 ? 'text-red-400' : 'text-green-400'}`}>{bottleneckMonths}/12</div>
+            <div className="text-[10px] text-slate-400 mt-1">{bottleneckMonths > 0 ? 'Frota insuficiente' : 'Capacidade OK'}</div>
           </div>
           <div className="card-gradient bg-gradient-to-br from-orange-500/10 to-amber-500/5 border border-slate-700/40 p-3 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">Utilização Máxima</div>
-            <div className={`text-lg font-black ${Math.max(...rows.map(r => r.utilizacao)) > 85 ? 'text-orange-400' : 'text-green-400'}`}>{Math.max(...rows.map(r => r.utilizacao)).toFixed(0)}%</div>
-            <div className="text-[10px] text-slate-400 mt-1">Pico de capacidade</div>
+            <div className="text-[7px] uppercase text-slate-400 font-bold mb-1">Gap Máximo</div>
+            <div className={`text-lg font-black ${maxGap > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+              {maxGap > 0 ? Math.round(maxGap).toLocaleString('pt-BR') : '0'}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1">Corridas perdidas/mês</div>
           </div>
         </div>
       </div>

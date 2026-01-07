@@ -79,13 +79,14 @@ export const calculateProjections = (
     currentDrivers += (params.driverAdditionMonthly || 0);
     currentDrivers = Math.min(driverCap, currentDrivers);
 
-    // Demanda de Usuários
-    // Demanda (com sazonalidade por mês)
+    // AJUSTE OPERACIONAL: Produtividade Ponderada da Frota
+    // MPD (Média de Produtividade Diária): 10,1 corridas/dia por motorista
+    // Reflete mix: 30% Full-time, 40% Part-time, 30% Esporádico
+    const MPD = 10.1; // corridas/dia/motorista cadastrado
+    const workingDaysPerMonth = 30.5; // dias úteis médios
+    
+    // Demanda de Usuários (com sazonalidade)
     let demandedRides = currentUsers * (params.ridesPerUserMonth || 4.2);
-    const workingDays = 30;
-    const efficiencyFactor = 0.85; // fator de eficiência
-    const maxTripsPerDriverDay = 20; // teto diário por motorista
-    const supplyCapacity = currentDrivers * efficiencyFactor * workingDays * maxTripsPerDriverDay;
 
     // Sazonalidade: -15% Jan/Jul, +20% Dez
     if (monthIndex === 0 || monthIndex === 6) { // Janeiro, Julho
@@ -94,7 +95,13 @@ export const calculateProjections = (
       demandedRides *= 1.20;
     }
     
+    // Capacidade da Frota (com MPD 10,1)
+    const supplyCapacity = currentDrivers * MPD * workingDaysPerMonth;
+    
+    // GMV LIMITADO: Faturamento mensal = MIN(demanda, capacidade)
     const actualRides = Math.min(demandedRides, supplyCapacity);
+    const isSupplyBottleneck = demandedRides > supplyCapacity;
+    const demandGap = isSupplyBottleneck ? demandedRides - supplyCapacity : 0;
     const ridesPM = currentDrivers > 0 ? actualRides / currentDrivers : 0;
 
     // Receita: take rate nominal 15%, média ponderada efetiva 13,2% (meritocracia)
@@ -177,7 +184,12 @@ export const calculateProjections = (
       grossPerDriver: currentDrivers > 0 ? grossRevenue / currentDrivers : 0,
       netPerDriver: currentDrivers > 0 ? (grossRevenue - takeRateRevenue) / currentDrivers : 0,
       ridesPerDriver: ridesPM,
-      ridesPerDriverDay: ridesPM / 30
+      ridesPerDriverDay: ridesPM / 30,
+      supplyCapacity,
+      demandedRides,
+      isSupplyBottleneck,
+      demandGap,
+      newUsersAdded
     });
   }
 

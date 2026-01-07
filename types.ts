@@ -64,6 +64,11 @@ export interface MonthlyResult {
   netPerDriver: number;
   ridesPerDriver: number; 
   ridesPerDriverDay: number;
+  supplyCapacity?: number; // Capacidade da frota (MPD * dias * motoristas)
+  demandedRides?: number; // Demanda dos usuários
+  isSupplyBottleneck?: boolean; // Indica se frota está limitando crescimento
+  demandGap?: number; // Gap entre demanda e capacidade
+  newUsersAdded?: number; // Novos usuários adicionados no mês
 }
 
 export interface YearAudit {
