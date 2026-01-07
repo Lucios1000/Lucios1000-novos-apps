@@ -7,7 +7,7 @@ import { calculateProjections, auditYears } from '../services/financeEngine';
 export const useViability = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [scenario, setScenario] = useState<ScenarioType>(ScenarioType.REALISTA);
-  const [dreYear, setDreYear] = useState<number | 'total'>(2026);
+  const [dreYear, setDreYear] = useState<number | 'total'>('total');
 
   const DEFAULT_VALUES: Record<ScenarioType, SimulationParams> = {
     [ScenarioType.REALISTA]: INITIAL_PARAMS, 

@@ -72,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onEx
               <button 
                 type="button"
                 onClick={(e) => { e.preventDefault(); onExportExcel?.(); }}
-                title="Exportar Excel (CSV)"
+                title="Exportar Excel (XLSX)"
                 className="p-2 text-slate-400 hover:text-green-500 transition-colors"
               >
                 <Download size={16} />

@@ -104,11 +104,24 @@ export const calculateProjections = (
     const demandGap = isSupplyBottleneck ? demandedRides - supplyCapacity : 0;
     const ridesPM = currentDrivers > 0 ? actualRides / currentDrivers : 0;
 
-    // Receita: take rate nominal 15%, média ponderada efetiva 13,2% (meritocracia)
+    // Receita: Sistema de Meritocracia por Faixas - CÁLCULO SIMPLES
+    // FAIXAS: Bronze (0-299): 15%, Prata (300-449): 12%, Ouro (450+): 10%
+    // Baseado na MÉDIA de corridas por motorista neste mês
+    
+    const avgRidesPerDriver = currentDrivers > 0 ? actualRides / currentDrivers : 0;
+    
+    // Determinar a faixa baseada na média
+    let takeRateEfetivo = 15; // padrão: Bronze
+    if (avgRidesPerDriver >= 450) {
+      takeRateEfetivo = 10; // Ouro
+    } else if (avgRidesPerDriver >= 300) {
+      takeRateEfetivo = 12; // Prata
+    }
+    
     const grossRevenue = actualRides * params.avgFare;
-    const takeRateGross = grossRevenue * 0.15; // nominal
-    const takeRateRevenue = grossRevenue * 0.132; // efetivo (13,2%)
-    const cashback = takeRateGross - takeRateRevenue; // devolução ao motorista
+    const takeRateGross = grossRevenue * 0.15;
+    const takeRateRevenue = grossRevenue * (takeRateEfetivo / 100);
+    const cashback = takeRateGross - takeRateRevenue;
 
     // CONDIÇÃO: Se Volume de Corridas for 0, zerar impostos, taxas e marketing
     let taxes = 0;
@@ -146,8 +159,16 @@ export const calculateProjections = (
     const eliteDriversCost = (m > 0 && (m + 1) % 6 === 0) ? params.eliteDriversSemestral : 0;
     // Fidelidade Passageiros: Anual (meses 12, 24, 36)
     const fidelidadePassageirosCost = (m > 0 && (m + 1) % 12 === 0) ? params.fidelidadePassageirosAnual : 0;
-    // Reserva Operacional: Percentual do GMV (mensal)
-    const reservaOperacionalCost = grossRevenue * (params.reservaOperacionalGMV / 100);
+    
+    // Calcula lucro preliminar (sem reserva operacional)
+    const ebitdaPrelim = takeRateRevenue - taxes - variableCosts - currentFixedCosts - totalTech - totalMarketing - eliteDriversCost - fidelidadePassageirosCost;
+    
+    // Reserva Operacional: Percentual do Lucro Líquido (mensal)
+    // Só aplica se: (1) parâmetro > 0 E (2) lucro preliminar > 0
+    let reservaOperacionalCost = 0;
+    if (params.reservaOperacionalGMV > 0 && ebitdaPrelim > 0) {
+      reservaOperacionalCost = ebitdaPrelim * (params.reservaOperacionalGMV / 100);
+    }
     
     const totalFidelityCosts = eliteDriversCost + fidelidadePassageirosCost + reservaOperacionalCost;
     

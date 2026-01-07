@@ -38,7 +38,10 @@ export interface SimulationParams {
   // Campanhas de Fidelidade TKX Dynamic Control
   eliteDriversSemestral: number;  // R$ 10.000 base semestral para 20 motoristas
   fidelidadePassageirosAnual: number;  // R$ 5.000 base anual (Sorteio iPhone)
-  reservaOperacionalGMV: number;  // 1% do GMV para cashbacks e experiências
+  reservaOperacionalGMV: number;  // % do Lucro Líquido para cashbacks e experiências
+  
+  // Meritocracia (Mix de Motoristas)
+  takeRateEfetivo: number;  // % efetivo (12-14,5%) - reflete mix Full-Time/Part-Time/Esporádicos
 }
 
 export interface MonthlyResult {

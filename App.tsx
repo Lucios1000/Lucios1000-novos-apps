@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import Layout from './components/Layout';
 import SnapshotModal from './components/SnapshotModal';
 import ComparisonTab from './components/ComparisonTab';
@@ -118,7 +119,7 @@ const FIDELITY_SLIDERS: Array<{
 }> = [
   { label: 'Elite Drivers (Semestral)', paramKey: 'eliteDriversSemestral', min: 0, max: 30000, step: 1000, description: 'R$ 10.000 base para 20 melhores motoristas' },
   { label: 'Fidelidade Passageiros (Anual)', paramKey: 'fidelidadePassageirosAnual', min: 0, max: 15000, step: 500, description: 'Sorteio iPhone e experiências VIP' },
-  { label: 'Reserva Operacional (% GMV)', paramKey: 'reservaOperacionalGMV', min: 0, max: 5, step: 0.1, description: 'Cashbacks e gatilhos de milha' },
+  { label: 'Reserva Operacional (% Lucro Líq.)', paramKey: 'reservaOperacionalGMV', min: 0, max: 5, step: 0.1, description: 'Cashbacks e gatilhos de milha' },
 ];
 
 const App: React.FC = () => {
@@ -152,6 +153,7 @@ const App: React.FC = () => {
   } = useSnapshots();
 
   const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
+  const [yearPeriod, setYearPeriod] = useState<1 | 2 | 3>(1);
 
   const currentMonth = projections[0];
   const lastMonth = projections[projections.length - 1];
@@ -198,6 +200,110 @@ const App: React.FC = () => {
     setIsSnapshotModalOpen(false);
   };
 
+  // Função para exportar em Excel
+  const handleExportExcel = () => {
+    try {
+      console.log('Iniciando exportação Excel...', { projectionsLength: projections.length });
+      
+      const wb = XLSX.utils.book_new();
+      
+      // Aba 1: DRE Detalhado
+      const dreData = projections.map((r, idx) => ({
+        'Mês': `M${r.month}`,
+        'GMV': r.grossRevenue || 0,
+        'Take 15%': (r.grossRevenue || 0) * 0.15,
+        'Meritocracia': r.cashback || 0,
+        'Receita': r.takeRateRevenue || 0,
+        'Impostos': r.taxes || 0,
+        'Fixos': r.fixedCosts || 0,
+        'Marketing': r.totalMarketing || 0,
+        'Tech': r.totalTech || 0,
+        'Variáveis': r.variableCosts || 0,
+        'Elite Drivers': r.eliteDriversCost || 0,
+        'Fid. Passageiros': r.fidelidadePassageirosCost || 0,
+        'Res. Oper.': r.reservaOperacional || 0,
+        'Lucro/Prejuízo': r.netProfit || 0,
+        'Margem %': r.margin || 0,
+      }));
+      console.log('DRE data prepared:', dreData.length, 'rows');
+      
+      const dreSheet = XLSX.utils.json_to_sheet(dreData);
+      XLSX.utils.book_append_sheet(wb, dreSheet, 'DRE');
+      
+      // Aba 2: Drivers
+      const driversData = projections.map((r) => ({
+        'Mês': `M${r.month}`,
+        'Usuários': r.users || 0,
+        'Frota': r.drivers || 0,
+        'Corridas/dia': r.drivers > 0 ? (r.rides / r.drivers / 30.5).toFixed(2) : 0,
+        'Corridas/mês (driver)': r.drivers > 0 ? Math.round(r.rides / r.drivers) : 0,
+        'Driver/dia (Potencial)': r.drivers > 0 ? ((r.rides + (r.demandGap || 0)) / r.drivers / 30.5).toFixed(2) : 0,
+        'Demanda': Math.round(r.demandedRides || 0),
+        'Capacidade': Math.round(r.supplyCapacity || 0),
+        'Realizado': Math.round(r.rides || 0),
+        'Gap Corridas': r.demandGap > 0 ? Math.round(r.demandGap) : 0,
+        'Utilização %': (r.utilizacao || 0).toFixed(1),
+      }));
+      console.log('Drivers data prepared:', driversData.length, 'rows');
+      
+      const driversSheet = XLSX.utils.json_to_sheet(driversData);
+      XLSX.utils.book_append_sheet(wb, driversSheet, 'Drivers');
+      
+      // Aba 3: Resumo Anual
+      const summaryData = [
+        {
+          'Período': 'Ano 1 (M1-12)',
+          'Receita': Math.round(yearlyMetrics.y1.revenue),
+          'Lucro': Math.round(yearlyMetrics.y1.profit),
+          'Corridas': Math.round(yearlyMetrics.y1.rides),
+          'Usuários Final': Math.round(yearlyMetrics.y1.finalUsers),
+          'Frota Final': Math.round(yearlyMetrics.y1.finalDrivers),
+        },
+        {
+          'Período': 'Ano 2 (M13-24)',
+          'Receita': Math.round(yearlyMetrics.y2.revenue),
+          'Lucro': Math.round(yearlyMetrics.y2.profit),
+          'Corridas': Math.round(yearlyMetrics.y2.rides),
+          'Usuários Final': Math.round(yearlyMetrics.y2.finalUsers),
+          'Frota Final': Math.round(yearlyMetrics.y2.finalDrivers),
+        },
+        {
+          'Período': 'Ano 3 (M25-36)',
+          'Receita': Math.round(yearlyMetrics.y3.revenue),
+          'Lucro': Math.round(yearlyMetrics.y3.profit),
+          'Corridas': Math.round(yearlyMetrics.y3.rides),
+          'Usuários Final': Math.round(yearlyMetrics.y3.finalUsers),
+          'Frota Final': Math.round(yearlyMetrics.y3.finalDrivers),
+        },
+      ];
+      const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, summarySheet, 'Resumo Anual');
+      
+      // Aba 4: Parâmetros
+      const paramsData = Object.entries(currentParams).map(([key, value]) => ({
+        'Parâmetro': key,
+        'Valor': value,
+      }));
+      const paramsSheet = XLSX.utils.json_to_sheet(paramsData);
+      XLSX.utils.book_append_sheet(wb, paramsSheet, 'Parâmetros');
+      
+      // Salvar arquivo
+      const fileName = `TKX-Dashboard-${scenario}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      console.log('Saving file:', fileName);
+      XLSX.writeFile(wb, fileName);
+      console.log('✅ Arquivo exportado com sucesso!');
+      alert(`✅ Arquivo "${fileName}" exportado com sucesso!`);
+    } catch (error) {
+      console.error('❌ Erro ao exportar:', error);
+      alert(`❌ Erro ao exportar: ${error}`);
+    }
+  };
+
+  // Função para imprimir/PDF
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   const renderScenarioSelector = () => (
     <div className="flex flex-wrap gap-2">
       {Object.values(ScenarioType).map((sc) => (
@@ -217,9 +323,10 @@ const App: React.FC = () => {
       <button
         type="button"
         onClick={resetParams}
-        className="px-4 py-2 rounded-xl text-xs font-black uppercase border-2 border-slate-600 text-slate-200 hover:border-red-500/50 hover:text-red-400 transition-all duration-300"
+        className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border border-slate-600 text-slate-200 hover:border-red-500/50 hover:text-red-400 transition-all duration-300"
+        title="Reseta todos os parâmetros do cenário atual para os valores padrão"
       >
-        Resetar parâmetros
+        Resetar
       </button>
     </div>
   );
@@ -512,12 +619,12 @@ const App: React.FC = () => {
 
   const renderMarketing = () => {
     const data = [
-      { name: 'Marketing', value: currentParams.marketingMonthly },
-      { name: 'Tech', value: currentParams.techMonthly },
-      { name: 'Adesão Turbo', value: currentParams.adesaoTurbo },
-      { name: 'Tráfego Pago', value: currentParams.trafegoPago },
-      { name: 'Parcerias', value: currentParams.parceriasBares },
-      { name: 'Indique/Ganhe', value: currentParams.indiqueGanhe },
+      { name: 'Marketing', value: currentParams.marketingMonthly || 0 },
+      { name: 'Tech', value: currentParams.techMonthly || 0 },
+      { name: 'Adesão Turbo', value: currentParams.adesaoTurbo || 0 },
+      { name: 'Tráfego Pago', value: currentParams.trafegoPago || 0 },
+      { name: 'Parcerias', value: currentParams.parceriasBares || 0 },
+      { name: 'Indique/Ganhe', value: currentParams.indiqueGanhe || 0 },
     ];
     const colors = ['#0b1220', '#f59e0b', '#eab308', '#e5e7eb', '#ef4444', '#fbbf24'];
     return (
@@ -525,7 +632,7 @@ const App: React.FC = () => {
         <div className="space-y-6">
           <h3 className="text-sm font-black uppercase text-yellow-500">Sliders de Marketing</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {MKT_SLIDERS.map((s) => (
+            {MKT_SLIDERS && MKT_SLIDERS.map((s) => (
               <div key={s.paramKey} className="space-y-2">
                 <div className="flex justify-between text-[10px] uppercase font-black text-slate-400">
                   <span>{s.label}</span>
@@ -547,17 +654,27 @@ const App: React.FC = () => {
         
         {/* TKX DYNAMIC CONTROL: Sliders de Fidelidade */}
         <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-black uppercase text-orange-500">🎯 TKX Dynamic Control - Fidelidade</h3>
-            <span className="text-[10px] text-slate-400 px-2 py-1 rounded-full bg-slate-800 border border-slate-700">Elite Drivers + Passageiros + Reserva Operacional</span>
+          <div className="flex items-center gap-3 justify-between">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-black uppercase text-orange-500">🎯 TKX Dynamic Control - Fidelidade</h3>
+              <span className="text-[10px] text-slate-400 px-2 py-1 rounded-full bg-slate-800 border border-slate-700">Elite Drivers + Passageiros + Reserva Operacional</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateCurrentParam('reservaOperacionalGMV', 0)}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border border-orange-600 text-orange-300 hover:border-orange-400 hover:bg-orange-500/10 transition-all duration-300"
+              title="Zera apenas a Reserva Operacional (Cashback)"
+            >
+              Zerar Cashback
+            </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {FIDELITY_SLIDERS.map((s) => (
+            {FIDELITY_SLIDERS && FIDELITY_SLIDERS.map((s) => (
               <div key={s.paramKey} className="space-y-2">
                 <div className="flex justify-between text-[10px] uppercase font-black text-slate-400">
                   <span>{s.label}</span>
                   <span className="text-orange-400 text-sm">
-                    {s.paramKey === 'reservaOperacionalGMV' ? `${(currentParams as any)[s.paramKey].toFixed(1)}%` : formatCurrency((currentParams as any)[s.paramKey])}
+                    {s.paramKey === 'reservaOperacionalGMV' ? `${((currentParams as any)[s.paramKey] || 0).toFixed(1)}%` : formatCurrency((currentParams as any)[s.paramKey] || 0)}
                   </span>
                 </div>
                 <input
@@ -577,7 +694,7 @@ const App: React.FC = () => {
             <div className="text-[10px] uppercase text-orange-400 font-black mb-2">💡 Consolidação de Campanhas</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-300">
               <div>
-                <span className="font-bold text-orange-300">Motoristas:</span> Take Rate Ponderado 13,2% (Meritocracia 15% a 10%). Premiação semestral para 20 melhores.
+                <span className="font-bold text-orange-300">Motoristas:</span> Meritocracia por faixas - 🥉 Ouro 450+ (10%), 🥈 Prata 300-449 (12%), 🥉 Bronze 0-299 (15%). Premiação semestral para 20 melhores.
               </div>
               <div>
                 <span className="font-bold text-orange-300">Passageiros:</span> Gatilhos de 500, 1.000 e 2.000 corridas (Cashback, Select e Experiência/Sorteio).
@@ -587,42 +704,42 @@ const App: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">{" "}
-          <div className="text-[10px] uppercase text-slate-400 font-black mb-4">Distribuição de Verba</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={3}>
-                {data.map((_, i) => (
-                  <Cell key={i} fill={colors[i % colors.length]} stroke="#0b1220" strokeWidth={1.2} />
-                ))}
-              </Pie>
-              <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
-              <Legend content={<NeutralLegend />} verticalAlign="bottom" height={36} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Custos Mensais</div>
-          <div className="grid grid-cols-2 gap-4 text-slate-200">
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Fixos</div>
-              <div className="text-xl font-black">{formatCurrency(currentParams.fixedCosts)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Tecnologia</div>
-              <div className="text-xl font-black">{formatCurrency(currentParams.techMonthly)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Marketing</div>
-              <div className="text-xl font-black">{formatCurrency(currentParams.marketingMonthly)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Campanhas</div>
-              <div className="text-xl font-black">{formatCurrency(currentParams.adesaoTurbo + currentParams.trafegoPago + currentParams.parceriasBares + currentParams.indiqueGanhe)}</div>
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <div className="text-[10px] uppercase text-slate-400 font-black mb-4">Distribuição de Verba</div>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={data} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={3}>
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={colors[i % colors.length]} stroke="#0b1220" strokeWidth={1.2} />
+                  ))}
+                </Pie>
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} verticalAlign="bottom" height={36} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Custos Mensais</div>
+            <div className="grid grid-cols-2 gap-4 text-slate-200">
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Fixos</div>
+                <div className="text-xl font-black">{formatCurrency(currentParams.fixedCosts)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Tecnologia</div>
+                <div className="text-xl font-black">{formatCurrency(currentParams.techMonthly)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Marketing</div>
+                <div className="text-xl font-black">{formatCurrency(currentParams.marketingMonthly)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Campanhas</div>
+                <div className="text-xl font-black">{formatCurrency(currentParams.adesaoTurbo + currentParams.trafegoPago + currentParams.parceriasBares + currentParams.indiqueGanhe)}</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     );
   };
@@ -745,7 +862,9 @@ const App: React.FC = () => {
 
   const renderDrivers = () => {
     const MPD = 10.1; // Média de Produtividade Diária
-    const rows = projections.slice(0, 12).map((r) => {
+    const startMonth = (yearPeriod - 1) * 12;
+    const endMonth = yearPeriod * 12;
+    const rows = projections.slice(startMonth, endMonth).map((r) => {
       const target = Math.max(50, Math.round(r.users / 200));
       const cov = r.users > 0 ? (r.drivers * 200) / r.users : 0;
       const gap = r.drivers - target;
@@ -763,6 +882,21 @@ const App: React.FC = () => {
 
     return (
       <div className="space-y-3">
+        <div className="flex gap-2 mb-4">
+          {[1, 2, 3].map((period) => (
+            <button
+              key={period}
+              onClick={() => setYearPeriod(period as 1 | 2 | 3)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                yearPeriod === period
+                  ? 'bg-yellow-500 text-slate-950'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              Ano {period} (M{(period - 1) * 12 + 1}-{period * 12})
+            </button>
+          ))}
+        </div>
         <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">Análise Mensal de Gap & Capacidade (MPD 10,1)</h3>
         
         {/* Alertas de Gargalo */}
@@ -789,6 +923,9 @@ const App: React.FC = () => {
                 <th className="p-2 text-left">Mês</th>
                 <th className="p-2 text-right">Usuários</th>
                 <th className="p-2 text-right">Frota</th>
+                <th className="p-2 text-right">Corridas/dia (zona conforto)</th>
+                <th className="p-2 text-right">Corridas/mês (driver)</th>
+                <th className="p-2 text-right">Driver/dia (Corridas Potencial)</th>
                 <th className="p-2 text-right">Demanda</th>
                 <th className="p-2 text-right">Capacidade</th>
                 <th className="p-2 text-right">Realizado</th>
@@ -803,6 +940,9 @@ const App: React.FC = () => {
                   <td className="p-2 font-bold text-slate-100">M{r.month}</td>
                   <td className="p-2 text-right"><NumberDisplay value={r.users} /></td>
                   <td className="p-2 text-right"><NumberDisplay value={r.drivers} /></td>
+                  <td className="p-2 text-right text-cyan-400">{(r.rides / r.drivers / 30.5).toFixed(2)}</td>
+                  <td className="p-2 text-right text-cyan-400"><NumberDisplay value={Math.round(r.rides / r.drivers)} /></td>
+                  <td className="p-2 text-right text-purple-400">{((r.rides + r.demandGap) / r.drivers / 30.5).toFixed(2)}</td>
                   <td className="p-2 text-right text-blue-400"><NumberDisplay value={Math.round(r.demandedRides)} /></td>
                   <td className="p-2 text-right text-green-400"><NumberDisplay value={Math.round(r.supplyCapacity)} /></td>
                   <td className="p-2 text-right"><NumberDisplay value={r.rides} /></td>
@@ -851,10 +991,25 @@ const App: React.FC = () => {
 
   const renderProjecoes = () => (
     <div className="space-y-3">
+      <div className="flex gap-2">
+        {[1, 2, 3].map((period) => (
+          <button
+            key={period}
+            onClick={() => setYearPeriod(period as 1 | 2 | 3)}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              yearPeriod === period
+                ? 'bg-yellow-500 text-slate-950'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Ano {period} (M{(period - 1) * 12 + 1}-{period * 12})
+          </button>
+        ))}
+      </div>
       <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">Projeções de Volume (36 meses)</h3>
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl h-[360px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={projections}>
+          <ComposedChart data={projections.slice((yearPeriod - 1) * 12, yearPeriod * 12)}>
             <CartesianGrid stroke="#1e293b" vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="month" stroke="#475569" fontSize={10} />
             <YAxis yAxisId="left" stroke="#475569" fontSize={10} />
@@ -1191,8 +1346,28 @@ const App: React.FC = () => {
     const breakEvenIndex = results.findIndex((r) => r.netProfit > 0);
     const paybackIndex = results.findIndex((r) => r.accumulatedProfit > 0);
     const totalRides36 = results.reduce((acc, curr) => acc + curr.rides, 0);
-    const totalGMV36 = results.reduce((acc, curr) => acc + curr.grossRevenue, 0);
     const totalProfit36 = results.reduce((acc, curr) => acc + curr.netProfit, 0);
+
+    // Calcula corridas por driver a cada 6 meses
+    const semesterRidesPerDriver = [
+      { label: 'Semestre 1 (M1-M6)', data: results.slice(0, 6) },
+      { label: 'Semestre 2 (M7-M12)', data: results.slice(6, 12) },
+      { label: 'Semestre 3 (M13-M18)', data: results.slice(12, 18) },
+      { label: 'Semestre 4 (M19-M24)', data: results.slice(18, 24) },
+      { label: 'Semestre 5 (M25-M30)', data: results.slice(24, 30) },
+      { label: 'Semestre 6 (M31-M36)', data: results.slice(30, 36) }
+    ].map((s) => {
+      const d = s.data;
+      if (!d.length) return { label: s.label, semesterTotal: 0, monthly: 0, weekly: 0, daily: 0 };
+      const totalRides = d.reduce((a, r) => a + r.rides, 0);
+      const avgDrivers = d.reduce((a, r) => a + r.drivers, 0) / d.length;
+      const semesterTotal = avgDrivers > 0 ? totalRides / avgDrivers : 0;
+      const monthly = semesterTotal / 6;
+      const weekly = monthly / 4.33; // ~4.33 semanas por mês
+      const daily = monthly / 30.5;
+      return { label: s.label, semesterTotal, monthly, weekly, daily };
+    });
+
     return (
       <div className="space-y-6">
         <h3 className="text-sm font-black uppercase text-yellow-500">Visão 36 meses</h3>
@@ -1210,11 +1385,39 @@ const App: React.FC = () => {
             <div className={`text-2xl font-black ${profitColor(totalProfit36)}`}><CurrencyDisplay value={profitValue(totalProfit36)} colorClass={profitColor(totalProfit36)} /></div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-            <div className="text-[10px] uppercase text-slate-400 font-black">GMV Total 36m</div>
-            <div className="text-xl font-black text-white">{formatCurrency(totalGMV36)}</div>
+            <div className="text-[10px] uppercase text-slate-400 font-black">Corridas por Driver - A Cada 6 Meses</div>
+            <div className="space-y-2 text-[9px] mt-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {semesterRidesPerDriver.map((s) => (
+                  <div key={s.label} className="bg-slate-800/40 border border-slate-700/40 p-3 rounded-lg">
+                    <div className="text-[8px] uppercase text-slate-400 font-bold mb-2">{s.label}</div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[7px] text-slate-400">Semestre:</span>
+                        <span className="text-sm font-black text-yellow-400">{s.semesterTotal.toFixed(0)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[7px] text-slate-400">Mensal:</span>
+                        <span className="text-xs font-bold text-green-400">{s.monthly.toFixed(0)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[7px] text-slate-400">Semanal:</span>
+                        <span className="text-xs font-bold text-blue-400">{s.weekly.toFixed(0)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[7px] text-slate-400">Diária:</span>
+                        <span className="text-xs font-bold text-orange-400">{s.daily.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4">
           <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
             <div className="text-[10px] uppercase text-slate-400 font-black">Corridas Totais 36m</div>
             <div className="text-xl font-black text-white">{formatNumber(totalRides36)}</div>
@@ -1241,6 +1444,21 @@ const App: React.FC = () => {
 
   const renderDre = () => (
     <div className="space-y-3">
+      <div className="flex gap-2">
+        {[1, 2, 3].map((period) => (
+          <button
+            key={period}
+            onClick={() => setYearPeriod(period as 1 | 2 | 3)}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              yearPeriod === period
+                ? 'bg-yellow-500 text-slate-950'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Ano {period} (M{(period - 1) * 12 + 1}-{period * 12})
+          </button>
+        ))}
+      </div>
       <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">DRE detalhado</h3>
       <div className="card-gradient border border-slate-700/40 rounded-xl overflow-hidden">
         <table className="w-full text-xs text-slate-200">
@@ -1249,7 +1467,7 @@ const App: React.FC = () => {
               <th className="p-2 text-left">Mês</th>
               <th className="p-2 text-right">GMV</th>
               <th className="p-2 text-right">Take 15%</th>
-              <th className="p-2 text-right">Cashback</th>
+              <th className="p-2 text-right">Meritocracia</th>
               <th className="p-2 text-right">Receita</th>
               <th className="p-2 text-right">Impostos</th>
               <th className="p-2 text-right">Fixos</th>
@@ -1264,7 +1482,7 @@ const App: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/40">
-            {(filteredDreResults || []).slice(0, 12).map((row, idx) => (
+            {(filteredDreResults || []).slice((yearPeriod - 1) * 12, yearPeriod * 12).map((row, idx) => (
               <tr key={row.month} className={idx % 2 === 0 ? 'bg-slate-900/30' : ''}>
                 <td className="p-2 font-bold text-slate-100">M{row.month}</td>
                 <td className="p-2 text-right text-slate-300"><CurrencyDisplay value={row.grossRevenue} /></td>
@@ -1278,7 +1496,9 @@ const App: React.FC = () => {
                 <td className="p-2 text-right text-red-300"><CurrencyDisplay value={row.variableCosts} /></td>
                 <td className="p-2 text-right text-orange-300"><CurrencyDisplay value={row.eliteDriversCost} /></td>
                 <td className="p-2 text-right text-orange-300"><CurrencyDisplay value={row.fidelidadePassageirosCost} /></td>
-                <td className="p-2 text-right text-orange-300"><CurrencyDisplay value={row.reservaOperacionalCost} /></td>
+                <td className="p-2 text-right text-orange-300">
+                  {row.reservaOperacionalCost > 0 ? <CurrencyDisplay value={row.reservaOperacionalCost} /> : <span className="text-slate-600">—</span>}
+                </td>
                 <td className={`p-2 text-right font-bold ${profitColor(row.netProfit)}`}>
                   <CurrencyDisplay value={profitValue(row.netProfit)} colorClass={profitColor(row.netProfit)} />
                 </td>
@@ -1292,14 +1512,15 @@ const App: React.FC = () => {
         <div className="text-[7px] uppercase text-slate-400 font-bold mb-2">Legenda</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-400">
           <div><span className="font-semibold text-slate-200">GMV:</span> Receita bruta das corridas</div>
-          <div><span className="font-semibold text-slate-200">Receita:</span> 13,2% do GMV (efetivo TKX)</div>
-          <div><span className="font-semibold text-orange-400">Cashback:</span> Devolução ao motorista (1,8%)</div>
+          <div><span className="font-semibold text-slate-200">Receita:</span> 11,9% do GMV (média ponderada por faixas)</div>
+          <div><span className="font-semibold text-orange-400">Meritocracia:</span> Cashback automático por faixa (0-3,1% GMV)</div>
+          <div><span className="font-semibold text-slate-400 text-[10px]">🥉 Ouro 450+ corridas/mês (58,7% vol): 10% | 🥈 Prata 300-449: 12% | 🥉 Bronze 0-299 (41,3% vol): 15%</span></div>
           <div><span className="font-semibold text-slate-200">Fixos:</span> R$8k escalado (+50%/semestre)</div>
           <div><span className="font-semibold text-slate-200">Marketing:</span> R$3k + R$1,5/novo usuário</div>
           <div><span className="font-semibold text-slate-200">Tech:</span> R$0,15/corrida + Bancário (2% GMV)</div>
           <div><span className="font-semibold text-orange-400">Elite Drivers:</span> Premiação semestral (M6, M12, M18...)</div>
           <div><span className="font-semibold text-orange-400">Fid. Passageiros:</span> Sorteio anual (M12, M24, M36)</div>
-          <div><span className="font-semibold text-orange-400">Reserva Operacional:</span> % GMV mensal (cashbacks/gatilhos)</div>
+          <div><span className="font-semibold text-orange-400">Reserva Operacional:</span> % Lucro Líquido (gatilhos/experiências)</div>
         </div>
       </div>
       
@@ -1366,6 +1587,56 @@ const App: React.FC = () => {
     const m1 = projections[0];
     const m12 = projections[11];
     const m36 = projections[35];
+
+    // Quebra por período (anos 1, 2, 3 e total)
+    const periodSlices = [
+      { key: 'y1', label: 'Ano 1', data: projections.slice(0, 12) },
+      { key: 'y2', label: 'Ano 2', data: projections.slice(12, 24) },
+      { key: 'y3', label: 'Ano 3', data: projections.slice(24, 36) },
+      { key: 'total', label: '36m', data: projections }
+    ];
+
+    const driverChurnMonthlyRate = 1; // Assumimos 1% de churn mensal da frota como proxy
+
+    const periodSummaries = periodSlices.map((p) => {
+      const data = p.data;
+      if (!data.length) {
+        return {
+          label: p.label,
+          grossRevenue: 0,
+          takeRevenue: 0,
+          netProfit: 0,
+          valuation: 0,
+          churnPassengers: 0,
+          churnDrivers: 0
+        };
+      }
+
+      const grossRevenue = data.reduce((acc, r) => acc + r.grossRevenue, 0);
+      const takeRevenue = data.reduce((acc, r) => acc + r.takeRateRevenue, 0);
+      const netProfit = data.reduce((acc, r) => acc + r.netProfit, 0);
+      const valuation = takeRevenue * 4; // múltiplo simples de 4x receita líquida (take rate)
+
+      const churnPassengers = data.reduce((acc, r, idx) => {
+        const prevUsers = idx === 0 ? r.users : data[idx - 1].users;
+        return acc + (prevUsers * (currentParams.churnRate || 0) / 100);
+      }, 0);
+
+      const churnDrivers = data.reduce((acc, r, idx) => {
+        const prevDrivers = idx === 0 ? r.drivers : data[idx - 1].drivers;
+        return acc + (prevDrivers * driverChurnMonthlyRate / 100);
+      }, 0);
+
+      return {
+        label: p.label,
+        grossRevenue,
+        takeRevenue,
+        netProfit,
+        valuation,
+        churnPassengers,
+        churnDrivers,
+      };
+    });
     
     // Determinar fase de crescimento
     const getGrowthPhase = (month: number): string => {
@@ -1416,90 +1687,313 @@ const App: React.FC = () => {
       <div className="space-y-4">
         {/* Header */}
         <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">Resumo Executivo</h3>
-        
-        {/* Growth Phase & Seasonality */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="card-gradient hover-lift bg-gradient-to-br from-blue-500/10 to-indigo-500/5 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-blue-400 font-bold tracking-[0.08em] mb-2">Fase de Crescimento</div>
-            <div className="text-sm font-black text-blue-300">{getGrowthPhase(currentMonth)}</div>
-            <div className="text-[9px] text-slate-400 mt-1">Mês {currentMonth} do ciclo</div>
-          </div>
-          <div className="card-gradient hover-lift bg-gradient-to-br from-purple-500/10 to-pink-500/5 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-purple-400 font-bold tracking-[0.08em] mb-2">Contexto Sazonal</div>
-            <div className="text-sm font-black text-purple-300">{seasonalLabel}</div>
-            <div className="text-[9px] text-slate-400 mt-1">Multiplicador: {currentSeasonality.toFixed(2)}x</div>
-          </div>
-        </div>
-        
-        {/* Capacity & Fleet Health */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+        {/* Indicadores consolidados ano a ano + total */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="card-gradient hover-lift bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-green-400 font-bold tracking-[0.08em] mb-2">Utilização de Capacidade (M12)</div>
-            <div className={`text-sm font-black ${utilizationRate > 80 ? 'text-orange-400' : 'text-green-400'}`}>{utilizationRate.toFixed(1)}%</div>
-            <div className="text-[9px] text-slate-400 mt-1">{actualRides.toFixed(0)} corridas / {maxCapacity.toFixed(0)} capacidade</div>
+            <div className="text-[8px] uppercase text-green-300 font-bold tracking-[0.08em] mb-2">Receita Bruta</div>
+            <div className="space-y-1 text-[10px] text-slate-300">
+              {periodSummaries.map((p) => (
+                <div key={p.label} className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">{p.label}</span>
+                  <span className="font-black text-green-300"><CurrencyDisplay value={p.grossRevenue} /></span>
+                </div>
+              ))}
+            </div>
           </div>
+
           <div className="card-gradient hover-lift bg-gradient-to-br from-orange-500/10 to-amber-500/5 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-orange-400 font-bold tracking-[0.08em] mb-2">Status da Frota (M12)</div>
-            <div className="text-sm font-black text-orange-300">{gapStatus}</div>
-            <div className="text-[9px] text-slate-400 mt-1">Meta: {targetDrivers} | Atual: {m12?.drivers || 0}</div>
+            <div className="text-[8px] uppercase text-orange-300 font-bold tracking-[0.08em] mb-2">Lucro / Prejuízo</div>
+            <div className="space-y-1 text-[10px] text-slate-300">
+              {periodSummaries.map((p) => (
+                <div key={p.label} className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">{p.label}</span>
+                  <span className={`font-black ${profitColor(p.netProfit)}`}><CurrencyDisplay value={profitValue(p.netProfit)} colorClass={profitColor(p.netProfit)} /></span>
+                </div>
+              ))}
+            </div>
           </div>
+
           <div className="card-gradient hover-lift bg-gradient-to-br from-cyan-500/10 to-blue-500/5 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-cyan-400 font-bold tracking-[0.08em] mb-2">Break-Even</div>
-            <div className="text-sm font-black text-cyan-300">{breakEvenLabel}</div>
-            <div className="text-[9px] text-slate-400 mt-1">Ponto de equilíbrio financeiro</div>
+            <div className="text-[8px] uppercase text-cyan-300 font-bold tracking-[0.08em] mb-2">Valuation (múltiplo 4x TR)</div>
+            <div className="space-y-1 text-[10px] text-slate-300">
+              {periodSummaries.map((p) => (
+                <div key={p.label} className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">{p.label}</span>
+                  <span className="font-black text-cyan-300"><CurrencyDisplay value={p.valuation} /></span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-        
-        {/* Year 1 vs Year 2 Trajectory */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Crescimento da Receita (12 meses)</div>
-            <div className={`text-lg font-black ${revenueGrowth > 200 ? 'text-green-400' : revenueGrowth > 100 ? 'text-yellow-400' : 'text-slate-300'}`}>{revenueGrowth.toFixed(0)}%</div>
-            <div className="text-[9px] text-slate-400 mt-1">De <CurrencyDisplay value={m1?.grossRevenue} /> para <CurrencyDisplay value={m12?.grossRevenue} /></div>
-          </div>
-          <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Crescimento de Usuários (12 meses)</div>
-            <div className={`text-lg font-black ${userGrowth > 200 ? 'text-green-400' : userGrowth > 100 ? 'text-yellow-400' : 'text-slate-300'}`}>{userGrowth.toFixed(0)}%</div>
-            <div className="text-[9px] text-slate-400 mt-1">De {m1?.users.toFixed(0) || 0} para {m12?.users.toFixed(0) || 0}</div>
-          </div>
-          <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Margem de Lucro (M12)</div>
-            <div className={`text-lg font-black ${profitMargin > 10 ? 'text-green-400' : profitMargin > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{profitMargin.toFixed(1)}%</div>
-            <div className="text-[9px] text-slate-400 mt-1">
-              {profitLabel(m12?.netProfit)}: <CurrencyDisplay value={profitValue(m12?.netProfit)} colorClass={profitColor(m12?.netProfit)} />
+
+          <div className="card-gradient hover-lift bg-gradient-to-br from-red-500/10 to-pink-500/5 border border-slate-700/40 p-4 rounded-lg">
+            <div className="text-[8px] uppercase text-red-300 font-bold tracking-[0.08em] mb-2">Churn</div>
+            <div className="space-y-1 text-[10px] text-slate-300">
+              {periodSummaries.map((p) => (
+                <div key={p.label} className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">{p.label}</span>
+                  <span className="font-bold text-red-200">Passageiros: <NumberDisplay value={Math.round(p.churnPassengers)} /></span>
+                </div>
+              ))}
+              <div className="border-t border-slate-700/40 pt-2 mt-1 space-y-1">
+                {periodSummaries.map((p) => (
+                  <div key={`${p.label}-drivers`} className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-200">{p.label}</span>
+                    <span className="font-bold text-rose-200">Motoristas: <NumberDisplay value={Math.round(p.churnDrivers)} /></span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
         
-        {/* Projection to M36 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Projeção ao Final (Mês 36)</div>
-            <div className="space-y-2 text-[9px]">
-              <div><span className="text-slate-400">Usuários:</span> <span className="font-semibold text-white"><NumberDisplay value={m36?.users} /></span></div>
-              <div><span className="text-slate-400">Frota:</span> <span className="font-semibold text-white"><NumberDisplay value={m36?.drivers} /></span></div>
-              <div><span className="text-slate-400">Corridas/mês:</span> <span className="font-semibold text-white"><NumberDisplay value={m36?.rides} /></span></div>
-              <div><span className="text-slate-400">Receita Bruta:</span> <span className="font-semibold text-green-400"><CurrencyDisplay value={m36?.grossRevenue} /></span></div>
+        {/* Per-period metrics: Utilização, Frota, Break-Even, Crescimento Receita/Usuários, Margem */}
+        {(() => {
+          const MPD = 10.1;
+          const periodMetrics = [
+            { label: 'Ano 1', data: projections.slice(0, 12) },
+            { label: 'Ano 2', data: projections.slice(12, 24) },
+            { label: 'Ano 3', data: projections.slice(24, 36) },
+            { label: 'Total', data: projections }
+          ].map((p) => {
+            const d = p.data;
+            if (!d.length) return { label: p.label, utilization: 0, fleetSize: 0, breakEvenMonth: '—', revGrowth: 0, userGrowth: 0, profitMargin: 0 };
+
+            const first = d[0];
+            const last = d[d.length - 1];
+            const maxCap = (last?.drivers || 1) * MPD * 30.5;
+            const utilization = maxCap > 0 ? ((d.reduce((a, r) => a + r.rides, 0) / (maxCap * d.length)) * 100) : 0;
+            const revGrowth = first?.grossRevenue ? (((last?.grossRevenue || 0) - first.grossRevenue) / first.grossRevenue * 100) : 0;
+            const userGrowth = first?.users ? (((last?.users || 0) - first.users) / first.users * 100) : 0;
+            const avgNetProfit = d.reduce((a, r) => a + r.netProfit, 0) / d.length;
+            const avgGrossRevenue = d.reduce((a, r) => a + r.grossRevenue, 0) / d.length;
+            const profitMargin = avgGrossRevenue > 0 ? (avgNetProfit / avgGrossRevenue * 100) : 0;
+            
+            const breakEven = d.find((r) => r.netProfit > 0);
+            const breakEvenMonth = breakEven ? `Mês ${breakEven.month}` : '—';
+
+            return { label: p.label, utilization, fleetSize: last?.drivers || 0, breakEvenMonth, revGrowth, userGrowth, profitMargin };
+          });
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+              {/* Utilização de Capacidade */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-green-400 font-bold tracking-[0.08em] mb-2">Utilização Capacidade</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {periodMetrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{m.label}</span>
+                      <span className={`font-black ${m.utilization > 80 ? 'text-orange-400' : 'text-green-400'}`}>{m.utilization.toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Frota Final */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-orange-500/10 to-amber-500/5 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-orange-400 font-bold tracking-[0.08em] mb-2">Frota Final</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {periodMetrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{m.label}</span>
+                      <span className="font-black text-orange-300"><NumberDisplay value={m.fleetSize} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Break-Even */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-cyan-500/10 to-blue-500/5 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-cyan-400 font-bold tracking-[0.08em] mb-2">Break-Even</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {periodMetrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{m.label}</span>
+                      <span className="font-black text-cyan-300">{m.breakEvenMonth}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Crescimento Receita */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-purple-500/10 to-pink-500/5 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-purple-400 font-bold tracking-[0.08em] mb-2">Cresc. Receita</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {periodMetrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{m.label}</span>
+                      <span className={`font-black ${m.revGrowth > 200 ? 'text-green-400' : m.revGrowth > 100 ? 'text-yellow-400' : 'text-slate-300'}`}>{m.revGrowth.toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Crescimento Usuários */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-indigo-500/10 to-blue-500/5 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-indigo-400 font-bold tracking-[0.08em] mb-2">Cresc. Usuários</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {periodMetrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{m.label}</span>
+                      <span className={`font-black ${m.userGrowth > 200 ? 'text-green-400' : m.userGrowth > 100 ? 'text-yellow-400' : 'text-slate-300'}`}>{m.userGrowth.toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Margem Lucro */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-emerald-400 font-bold tracking-[0.08em] mb-2">Margem Lucro</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {periodMetrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{m.label}</span>
+                      <span className={`font-black ${m.profitMargin > 10 ? 'text-green-400' : m.profitMargin > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{m.profitMargin.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Lucro / Prejuízo Acumulado (36 meses)</div>
-            <div className={`text-lg font-black ${profitColor(m36?.cumulativeProfit)}`}>
-              <CurrencyDisplay value={profitValue(m36?.cumulativeProfit)} colorClass={profitColor(m36?.cumulativeProfit)} />
-            </div>
-            <div className="text-[9px] text-slate-400 mt-2">Cenário: <span className="font-semibold">{SCENARIO_LABEL[scenario]}</span></div>
-          </div>
-        </div>
+          );
+        })()}
         
-        {/* Operational Alerts */}
-        <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-          <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">📋 Alertas Operacionais</div>
-          <div className="space-y-1">
-            {alerts.map((alert, idx) => (
-              <div key={idx} className="text-[9px] text-slate-300 font-semibold">{alert}</div>
-            ))}
-          </div>
-        </div>
+        {/* Projection per period - Final metrics */}
+        {(() => {
+          const projectionData = [
+            { label: 'Ano 1', data: projections.slice(0, 12) },
+            { label: 'Ano 2', data: projections.slice(12, 24) },
+            { label: 'Ano 3', data: projections.slice(24, 36) },
+            { label: 'Total', data: projections }
+          ].map((p) => {
+            const d = p.data;
+            if (!d.length) return { label: p.label, users: 0, drivers: 0, rides: 0, grossRevenue: 0, accumulatedProfit: 0 };
+            const last = d[d.length - 1];
+            const accumulatedProfit = last.accumulatedProfit;
+            const avgRides = d.reduce((a, r) => a + r.rides, 0) / d.length;
+            return { label: p.label, users: last.users, drivers: last.drivers, rides: avgRides, grossRevenue: last.grossRevenue, accumulatedProfit };
+          });
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+              {/* Usuários Finais */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Usuários Finais</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {projectionData.map((p) => (
+                    <div key={p.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{p.label}</span>
+                      <span className="font-black text-blue-300"><NumberDisplay value={p.users} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Frota Final */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Frota Final</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {projectionData.map((p) => (
+                    <div key={p.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{p.label}</span>
+                      <span className="font-black text-orange-300"><NumberDisplay value={p.drivers} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Corridas/mês (Média) */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Corridas/mês (Méd.)</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {projectionData.map((p) => (
+                    <div key={p.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{p.label}</span>
+                      <span className="font-black text-yellow-300"><NumberDisplay value={Math.round(p.rides)} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Receita Bruta Final */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Receita Bruta</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {projectionData.map((p) => (
+                    <div key={p.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{p.label}</span>
+                      <span className="font-black text-green-300"><CurrencyDisplay value={p.grossRevenue} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lucro Acumulado Final */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Lucro Acumulado</div>
+                <div className="space-y-1 text-[8px] text-slate-300">
+                  {projectionData.map((p) => (
+                    <div key={p.label} className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200">{p.label}</span>
+                      <span className={`font-black ${profitColor(p.accumulatedProfit)}`}><CurrencyDisplay value={profitValue(p.accumulatedProfit)} colorClass={profitColor(p.accumulatedProfit)} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cenário */}
+              <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Cenário</div>
+                <div className="text-[10px] font-black text-slate-100 mt-2">{SCENARIO_LABEL[scenario]}</div>
+                <div className="text-[8px] text-slate-400 mt-2">Inicial: {currentParams.activeDrivers} motoristas + {currentParams.driverAdditionMonthly}/mês</div>
+              </div>
+            </div>
+          );
+        })()}
+        
+        {/* Operational Alerts per Period */}
+        {(() => {
+          const MPD = 10.1;
+          const alertsPerPeriod = [
+            { label: 'Ano 1', data: projections.slice(0, 12) },
+            { label: 'Ano 2', data: projections.slice(12, 24) },
+            { label: 'Ano 3', data: projections.slice(24, 36) },
+            { label: 'Total', data: projections }
+          ].map((p) => {
+            const d = p.data;
+            if (!d.length) return { label: p.label, alerts: [] };
+
+            const last = d[d.length - 1];
+            const maxCap = (last?.drivers || 1) * MPD * 30.5;
+            const utilization = maxCap > 0 ? ((d.reduce((a, r) => a + r.rides, 0) / (maxCap * d.length)) * 100) : 0;
+            const avgNetProfit = d.reduce((a, r) => a + r.netProfit, 0) / d.length;
+            const avgGrossRevenue = d.reduce((a, r) => a + r.grossRevenue, 0) / d.length;
+            const profitMargin = avgGrossRevenue > 0 ? (avgNetProfit / avgGrossRevenue * 100) : 0;
+
+            const alerts: string[] = [];
+            if (utilization > 85) alerts.push('⚠️ Capacidade crítica (>85%)');
+            if (profitMargin < 0) alerts.push('📉 Prejuízo operacional');
+            if (profitMargin >= 0 && profitMargin <= 5) alerts.push('📊 Margem baixa (≤5%)');
+            if (!alerts.length) alerts.push('✅ Operações OK');
+
+            return { label: p.label, alerts };
+          });
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {alertsPerPeriod.map((ap) => (
+                <div key={ap.label} className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-3 rounded-lg">
+                  <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">📋 {ap.label}</div>
+                  <div className="space-y-1 text-[8px] text-slate-300">
+                    {ap.alerts.map((alert, idx) => (
+                      <div key={idx} className="font-semibold text-slate-200">{alert}</div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -1586,6 +2080,8 @@ const App: React.FC = () => {
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
         onOpenSnapshots={() => setIsSnapshotModalOpen(true)}
+        onExportPDF={handleExportPDF}
+        onExportExcel={handleExportExcel}
       >
         <div className="space-y-5 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between p-5 rounded-xl bg-gradient-to-br from-slate-900/70 to-slate-800/50 border border-slate-700/40 shadow-lg">
