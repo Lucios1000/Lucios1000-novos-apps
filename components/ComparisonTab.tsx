@@ -1,3 +1,4 @@
+import { DarkTooltip, NeutralLegend } from './ChartUI';
 import React, { useState, useMemo } from 'react';
 import { Snapshot } from '../hooks/useSnapshots';
 import { ScenarioType, SimulationParams } from '../types';
@@ -82,6 +83,13 @@ const ComparisonTab: React.FC<ComparisonTabProps> = ({ snapshots, calculateProje
   const formatNumber = (value: number) =>
     value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
+  const profitLabel = (value: number, positiveLabel = 'Lucro Total', negativeLabel = 'Prejuízo Total') =>
+    value < 0 ? negativeLabel : positiveLabel;
+
+  const profitColor = (value: number) => (value < 0 ? 'text-red-400' : 'text-blue-400');
+
+  const profitValue = (value: number) => Math.abs(value);
+
   return (
     <div className="space-y-6 text-slate-100">
       {/* Seletores */}
@@ -112,9 +120,11 @@ const ComparisonTab: React.FC<ComparisonTabProps> = ({ snapshots, calculateProje
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Lucro Total:</span>
-                  <span className="font-mono font-semibold text-blue-400">
-                    {formatCurrency(idx === 0 ? comparisonData.totals.profit1 : comparisonData.totals.profit2)}
+                  <span className="text-slate-400">
+                    {profitLabel(idx === 0 ? comparisonData.totals.profit1 : comparisonData.totals.profit2)}:
+                  </span>
+                  <span className={`font-mono font-semibold ${profitColor(idx === 0 ? comparisonData.totals.profit1 : comparisonData.totals.profit2)}`}>
+                    {formatCurrency(profitValue(idx === 0 ? comparisonData.totals.profit1 : comparisonData.totals.profit2))}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -145,12 +155,8 @@ const ComparisonTab: React.FC<ComparisonTabProps> = ({ snapshots, calculateProje
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="month" stroke="#94a3b8" />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number) => formatCurrency(value)}
-                />
-                <Legend />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} />
                 <Line
                   type="monotone"
                   dataKey="revenue1"
@@ -171,20 +177,16 @@ const ComparisonTab: React.FC<ComparisonTabProps> = ({ snapshots, calculateProje
             </ResponsiveContainer>
           </div>
 
-          {/* Gráfico Lucro */}
+          {/* Gráfico Lucro / Prejuízo */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700">
-            <h3 className="text-lg font-bold mb-4 text-blue-300">💰 Lucro Líquido Comparado</h3>
+            <h3 className="text-lg font-bold mb-4 text-blue-300">💰 Lucro/Prejuízo Líquido Comparado</h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={comparisonData.monthly}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="month" stroke="#94a3b8" />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number) => formatCurrency(value)}
-                />
-                <Legend />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} />
                 <Line
                   type="monotone"
                   dataKey="profit1"
@@ -213,12 +215,8 @@ const ComparisonTab: React.FC<ComparisonTabProps> = ({ snapshots, calculateProje
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="month" stroke="#94a3b8" />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number) => formatNumber(value)}
-                />
-                <Legend />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} />
                 <Line
                   type="monotone"
                   dataKey="users1"

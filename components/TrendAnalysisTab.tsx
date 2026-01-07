@@ -1,3 +1,4 @@
+import { DarkTooltip, NeutralLegend } from './ChartUI';
 import React, { useMemo } from 'react';
 import { Snapshot } from '../hooks/useSnapshots';
 import { ScenarioType, SimulationParams } from '../types';
@@ -62,6 +63,13 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
   const formatPercent = (value: number) =>
     `${value.toFixed(2)}%`;
 
+  const profitLabel = (value: number, positiveLabel = 'Lucro', negativeLabel = 'Prejuízo') =>
+    value < 0 ? negativeLabel : positiveLabel;
+
+  const profitColor = (value: number) => (value < 0 ? 'text-red-400' : 'text-blue-400');
+
+  const profitValue = (value: number) => Math.abs(value);
+
   return (
     <div className="space-y-6 text-slate-100">
       {trendData && trendData.length >= 2 ? (
@@ -74,7 +82,7 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
                 <tr>
                   <th className="text-left py-2 px-3 text-yellow-300">Snapshot</th>
                   <th className="text-right py-2 px-3 text-green-400">Receita</th>
-                  <th className="text-right py-2 px-3 text-blue-400">Lucro</th>
+                  <th className="text-right py-2 px-3 text-blue-400">Lucro / Prejuízo</th>
                   <th className="text-right py-2 px-3 text-purple-400">Usuários</th>
                   <th className="text-right py-2 px-3 text-orange-400">Motoristas</th>
                   <th className="text-right py-2 px-3 text-cyan-400">Margem</th>
@@ -90,7 +98,9 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
                       <div className="text-slate-500">{trend.date}</div>
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-green-400">{formatCurrency(trend.revenue)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-blue-400">{formatCurrency(trend.profit)}</td>
+                    <td className={`py-3 px-3 text-right font-mono ${profitColor(trend.profit)}`}>
+                      {formatCurrency(profitValue(trend.profit))}
+                    </td>
                     <td className="py-3 px-3 text-right font-mono text-purple-400">{formatNumber(trend.users)}</td>
                     <td className="py-3 px-3 text-right font-mono text-orange-400">{formatNumber(trend.drivers)}</td>
                     <td className="py-3 px-3 text-right font-mono text-cyan-400">{formatPercent(trend.margin)}</td>
@@ -102,26 +112,19 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
             </table>
           </div>
 
-          {/* Gráfico Receita e Lucro */}
+          {/* Gráfico Receita e Lucro / Prejuízo */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700">
-            <h3 className="text-lg font-bold mb-4 text-green-300">💹 Tendência de Receita e Lucro</h3>
+            <h3 className="text-lg font-bold mb-4 text-green-300">💹 Tendência de Receita e Lucro/Prejuízo</h3>
             <ResponsiveContainer width="100%" height={350}>
               <ComposedChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="name" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} />
                 <YAxis yAxisId="left" stroke="#94a3b8" />
                 <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number, name) => {
-                    if (name === 'Receita' || name === 'Lucro') return formatCurrency(value);
-                    return value;
-                  }}
-                />
-                <Legend />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} />
                 <Bar yAxisId="left" dataKey="revenue" fill="#10b981" name="Receita" />
-                <Line yAxisId="right" type="monotone" dataKey="profit" stroke="#f59e0b" name="Lucro" strokeWidth={2} />
+                <Line yAxisId="right" type="monotone" dataKey="profit" stroke="#f59e0b" name="Lucro / Prejuízo" strokeWidth={2} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -134,12 +137,8 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="name" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number) => formatNumber(value)}
-                />
-                <Legend />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} />
                 <Line
                   type="monotone"
                   dataKey="users"
@@ -169,12 +168,8 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
                 <XAxis dataKey="name" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} />
                 <YAxis yAxisId="left" stroke="#94a3b8" />
                 <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number) => formatCurrency(value)}
-                />
-                <Legend />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} />
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -211,11 +206,7 @@ const TrendAnalysisTab: React.FC<TrendAnalysisTabProps> = ({ snapshots, calculat
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="name" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#e2e8f0' }}
-                  formatter={(value: number) => formatPercent(value)}
-                />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
                 <Bar dataKey="margin" fill="#14b8a6" name="Margem (%)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

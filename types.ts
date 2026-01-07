@@ -34,6 +34,11 @@ export interface SimulationParams {
   bankFeeRate: number; // Novo: Taxa bancária em %
   isMaintenanceActive: boolean; // Novo: Interruptor de custos de manutenção
   applyMinimumCosts: boolean; // Toggle para ativar/desativar custos mínimos fixos e marketing
+  
+  // Campanhas de Fidelidade TKX Dynamic Control
+  eliteDriversSemestral: number;  // R$ 10.000 base semestral para 20 motoristas
+  fidelidadePassageirosAnual: number;  // R$ 5.000 base anual (Sorteio iPhone)
+  reservaOperacionalGMV: number;  // 1% do GMV para cashbacks e experiências
 }
 
 export interface MonthlyResult {
@@ -53,6 +58,10 @@ export interface MonthlyResult {
   marketing: number;
   tech: number;
   campaignCosts: number;
+  // Custos de Fidelidade (para exibição transparente)
+  eliteDriversCost: number;
+  fidelidadePassageirosCost: number;
+  reservaOperacionalCost: number;
   ebitda: number;
   netProfit: number;
   accumulatedProfit: number;

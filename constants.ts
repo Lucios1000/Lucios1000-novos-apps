@@ -46,7 +46,12 @@ export const INITIAL_PARAMS: SimulationParams = {
   churnRate: 2,
   bankFeeRate: 3.0,
   isMaintenanceActive: true,
-  applyMinimumCosts: true // Por padrão, aplicar custos mínimos (realista)
+  applyMinimumCosts: true, // Por padrão, aplicar custos mínimos (realista)
+  
+  // Campanhas de Fidelidade TKX Dynamic Control
+  eliteDriversSemestral: 10000,  // R$ 10.000/semestre para 20 melhores motoristas
+  fidelidadePassageirosAnual: 5000,  // R$ 5.000/ano (Sorteio iPhone)
+  reservaOperacionalGMV: 1.0,  // 1% do GMV para cashbacks e experiências
 };
 
 export const MONTH_NAMES = [

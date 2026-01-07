@@ -24,6 +24,7 @@ import {
   ComposedChart,
   ReferenceLine,
 } from 'recharts';
+import { DarkTooltip, NeutralLegend } from './components/ChartUI';
 
 const formatCurrency = (value?: number) =>
   typeof value === 'number'
@@ -37,9 +38,10 @@ const formatPercent = (value?: number, digits = 1) =>
   typeof value === 'number' ? `${value.toFixed(digits)}%` : '—';
 
 // Componentes para renderização refinada
-const CurrencyDisplay: React.FC<{ value?: number }> = ({ value }) => (
-  <span className="font-mono text-sm font-semibold text-yellow-300">{formatCurrency(value)}</span>
-);
+const CurrencyDisplay: React.FC<{ value?: number; colorClass?: string; abs?: boolean }> = ({ value, colorClass = 'text-yellow-300', abs = false }) => {
+  const displayValue = typeof value === 'number' && abs ? Math.abs(value) : value;
+  return <span className={`font-mono text-sm font-semibold ${colorClass}`}>{formatCurrency(displayValue)}</span>;
+};
 
 const NumberDisplay: React.FC<{ value?: number }> = ({ value }) => (
   <span className="font-mono text-sm font-semibold text-slate-100">{formatNumber(value)}</span>
@@ -49,11 +51,30 @@ const PercentDisplay: React.FC<{ value?: number; digits?: number }> = ({ value, 
   <span className="font-mono text-sm font-semibold">{formatPercent(value, digits)}</span>
 );
 
+const profitLabel = (value?: number, positiveLabel = 'Lucro', negativeLabel = 'Prejuízo') =>
+  typeof value === 'number' && value < 0 ? negativeLabel : positiveLabel;
+
+const profitColor = (value?: number, positiveClass = 'text-green-400', negativeClass = 'text-red-400') =>
+  typeof value === 'number' && value < 0 ? negativeClass : positiveClass;
+
+const profitValue = (value?: number) => (typeof value === 'number' ? Math.abs(value) : value);
+
 const SCENARIO_LABEL: Record<ScenarioType, string> = {
   [ScenarioType.REALISTA]: 'Realista',
   [ScenarioType.PESSIMISTA]: 'Pessimista',
   [ScenarioType.OTIMISTA]: 'Otimista',
 };
+
+const PLAYER_COLORS: Record<string, string> = {
+  // Paleta solicitada: preto, laranja, amarelo, branco, vermelho
+  Uber: '#0b1220',
+  '99': '#f59e0b',
+  Maxim: '#eab308',
+  Garupa: '#e5e7eb',
+  'Urban 66': '#ef4444',
+  'TKX Franca': '#fbbf24',
+};
+
 
 const PARAM_SLIDERS: Array<{
   key: keyof MonthlyResult | string;
@@ -85,6 +106,19 @@ const MKT_SLIDERS: Array<{
   { label: 'Tráfego Pago (R$)', paramKey: 'trafegoPago', min: 0, max: 10000, step: 100 },
   { label: 'Parcerias Bares (R$)', paramKey: 'parceriasBares', min: 0, max: 10000, step: 100 },
   { label: 'Indique/Ganhe (R$)', paramKey: 'indiqueGanhe', min: 0, max: 10000, step: 100 },
+];
+
+const FIDELITY_SLIDERS: Array<{
+  label: string;
+  paramKey: keyof ReturnType<typeof useViability>['currentParams'];
+  min: number;
+  max: number;
+  step: number;
+  description: string;
+}> = [
+  { label: 'Elite Drivers (Semestral)', paramKey: 'eliteDriversSemestral', min: 0, max: 30000, step: 1000, description: 'R$ 10.000 base para 20 melhores motoristas' },
+  { label: 'Fidelidade Passageiros (Anual)', paramKey: 'fidelidadePassageirosAnual', min: 0, max: 15000, step: 500, description: 'Sorteio iPhone e experiências VIP' },
+  { label: 'Reserva Operacional (% GMV)', paramKey: 'reservaOperacionalGMV', min: 0, max: 5, step: 0.1, description: 'Cashbacks e gatilhos de milha' },
 ];
 
 const App: React.FC = () => {
@@ -198,9 +232,10 @@ const App: React.FC = () => {
         accent: 'text-gradient-gold',
         bg: 'from-yellow-500/10 to-orange-500/5',
       }, {
-        label: 'Lucro Líquido (Mês 1)',
+        label: profitLabel(summary.net, 'Lucro Líquido (Mês 1)', 'Prejuízo (Mês 1)'),
         value: summary.net,
-        accent: summary.net >= 0 ? 'text-gradient-green' : 'text-gradient-red',
+        isProfit: true,
+        accent: profitColor(summary.net, 'text-gradient-green', 'text-gradient-red'),
         bg: summary.net >= 0 ? 'from-green-500/10 to-emerald-500/5' : 'from-red-500/10 to-rose-500/5',
       }, {
         label: 'Margem (Mês 1)',
@@ -224,6 +259,8 @@ const App: React.FC = () => {
                 <span className="text-slate-400 text-lg"> / </span>
                 <NumberDisplay value={(card.value as number[])[1]} />
               </>
+            ) : card.isProfit ? (
+              <CurrencyDisplay value={profitValue(card.value as number)} colorClass={profitColor(card.value as number)} />
             ) : <CurrencyDisplay value={card.value as number} />}
           </div>
         </div>
@@ -270,37 +307,208 @@ const App: React.FC = () => {
     </div>
   );
 
-  const renderBench = () => (
-    <div className="space-y-6">
-      <h3 className="text-sm font-black uppercase text-yellow-500">Benchmark / Market Share</h3>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-          <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Participação de Mercado</div>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={FRANCA_STATS.marketPlayers}>
-              <CartesianGrid vertical={false} stroke="#1e293b" />
-              <XAxis dataKey="name" stroke="#475569" fontSize={10} />
-              <YAxis stroke="#475569" fontSize={10} />
-              <Tooltip contentStyle={{ backgroundColor: '#020617', border: 'none', fontSize: 10 }} />
-              <Bar dataKey="share" fill="#EAB308" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+  const renderBench = () => {
+    const players = FRANCA_STATS.marketPlayers.map((p: any) => ({
+      ...p,
+      color: PLAYER_COLORS[p.name] || '#e2e8f0',
+    }));
+    const shareOverrides: Record<string, number> = {
+      Uber: 50,
+      '99': 20,
+      Maxim: 18,
+      Garupa: 5,
+      'Urban 66': 5,
+      'TKX Franca': 2,
+    };
+    const ratingData = players.map((p: any) => ({
+      name: p.name,
+      share: shareOverrides[p.name] ?? p.share,
+      ticket: p.ticket,
+      satisfaction: p.satisfaction ?? (p.name === 'TKX Franca' ? 4.6 : 4.2),
+      color: p.color,
+    }));
+    // Gradientes por player (Bench)
+    const GRADIENT_IDS: Record<string, string> = {
+      Uber: 'gradUber',
+      '99': 'grad99',
+      Maxim: 'gradMaxim',
+      Garupa: 'gradGarupa',
+      'Urban 66': 'gradUrban',
+      'TKX Franca': 'gradTKX',
+    };
+    const legendChips = (
+      <div className="flex flex-wrap gap-3 text-[11px] text-slate-300">
+        {ratingData.map((p) => (
+          <div key={p.name} className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.color }} />
+            <span className="font-semibold">{p.name}</span>
+          </div>
+        ))}
+      </div>
+    );
+
+    return (
+      <div className="space-y-6">
+        <h3 className="text-sm font-black uppercase text-yellow-500">Benchmark / Market Share</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+            <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Participação de Mercado</div>
+              <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={ratingData}>
+                <defs>
+                  <linearGradient id="gradUber" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0b1220" />
+                    <stop offset="100%" stopColor="#1f2937" />
+                  </linearGradient>
+                  <linearGradient id="grad99" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" />
+                    <stop offset="100%" stopColor="#fbbf24" />
+                  </linearGradient>
+                  <linearGradient id="gradMaxim" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#eab308" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                  <linearGradient id="gradGarupa" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#e5e7eb" />
+                    <stop offset="100%" stopColor="#f3f4f6" />
+                  </linearGradient>
+                  <linearGradient id="gradUrban" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                  <linearGradient id="gradTKX" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#fbbf24" />
+                    <stop offset="100%" stopColor="#eab308" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="#1e293b" />
+                <XAxis dataKey="name" stroke="#475569" fontSize={10} />
+                <YAxis stroke="#475569" fontSize={10} />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Bar dataKey="share" radius={[8, 8, 4, 4]}>
+                  {ratingData.map((entry, index) => (
+                    <Cell key={`cell-share-${index}`} fill={`url(#${GRADIENT_IDS[entry.name] || 'grad99'})`} stroke="#0b1220" strokeWidth={2} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-2">{legendChips}</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+            <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Ticket Médio (R$)</div>
+              <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={ratingData}>
+                <defs>
+                  <linearGradient id="gradTicketUber" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0b1220" />
+                    <stop offset="100%" stopColor="#1f2937" />
+                  </linearGradient>
+                  <linearGradient id="gradTicket99" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" />
+                    <stop offset="100%" stopColor="#fbbf24" />
+                  </linearGradient>
+                  <linearGradient id="gradTicketMaxim" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#eab308" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                  <linearGradient id="gradTicketGarupa" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#e5e7eb" />
+                    <stop offset="100%" stopColor="#f3f4f6" />
+                  </linearGradient>
+                  <linearGradient id="gradTicketUrban" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                  <linearGradient id="gradTicketTKX" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#fbbf24" />
+                    <stop offset="100%" stopColor="#eab308" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="#1e293b" />
+                <XAxis dataKey="name" stroke="#475569" fontSize={10} />
+                <YAxis stroke="#475569" fontSize={10} />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Bar dataKey="ticket" radius={[8, 8, 4, 4]}>
+                  {ratingData.map((entry, index) => (
+                    <Cell key={`cell-ticket-${index}`} fill={`url(#${
+                      entry.name === 'Uber' ? 'gradTicketUber' :
+                      entry.name === '99' ? 'gradTicket99' :
+                      entry.name === 'Maxim' ? 'gradTicketMaxim' :
+                      entry.name === 'Garupa' ? 'gradTicketGarupa' :
+                      entry.name === 'Urban 66' ? 'gradTicketUrban' :
+                      'gradTicketTKX'
+                    })`} stroke="#0b1220" strokeWidth={2} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-2">{legendChips}</div>
+          </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-          <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Ticket Médio (R$)</div>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={FRANCA_STATS.marketPlayers}>
-              <CartesianGrid vertical={false} stroke="#1e293b" />
-              <XAxis dataKey="name" stroke="#475569" fontSize={10} />
-              <YAxis stroke="#475569" fontSize={10} />
-              <Tooltip contentStyle={{ backgroundColor: '#020617', border: 'none', fontSize: 10 }} />
-              <Line type="monotone" dataKey="ticket" stroke="#38bdf8" strokeWidth={3} dot={false} />
-            </LineChart>
+
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <div className="text-[10px] uppercase text-slate-400 font-black">Satisfação x Market Share x Ticket</div>
+              <div className="text-xs text-slate-500">Notas (1-5), participação (%) e ticket médio por player</div>
+            </div>
+            {legendChips}
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
+            <ComposedChart data={ratingData}>
+              <defs>
+                <linearGradient id="gradShareUber2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0b1220" />
+                  <stop offset="100%" stopColor="#1f2937" />
+                </linearGradient>
+                <linearGradient id="gradShare992" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#fbbf24" />
+                </linearGradient>
+                <linearGradient id="gradShareMaxim2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#eab308" />
+                  <stop offset="100%" stopColor="#f59e0b" />
+                </linearGradient>
+                <linearGradient id="gradShareGarupa2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#e5e7eb" />
+                  <stop offset="100%" stopColor="#f3f4f6" />
+                </linearGradient>
+                <linearGradient id="gradShareUrban2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" />
+                  <stop offset="100%" stopColor="#f59e0b" />
+                </linearGradient>
+                <linearGradient id="gradShareTKX2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#fbbf24" />
+                  <stop offset="100%" stopColor="#eab308" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="name" stroke="#475569" fontSize={11} />
+              <YAxis yAxisId="left" stroke="#22c55e" domain={[0, 5]} tickFormatter={(v) => v.toFixed(0)} width={40} />
+              <YAxis yAxisId="right" orientation="right" stroke="#eab308" domain={[0, 60]} tickFormatter={(v) => `${v}%`} width={45} />
+              <YAxis yAxisId="ticket" orientation="right" stroke="#38bdf8" domain={[0, 30]} tickFormatter={(v) => `R$${v}`} width={55} hide />
+              <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+              <Legend content={<NeutralLegend />} />
+              <Bar yAxisId="right" dataKey="share" name="Market share" radius={[8, 8, 4, 4]}>
+                {ratingData.map((entry, index) => (
+                  <Cell key={`cell-share2-${index}`} fill={`url(#${
+                    entry.name === 'Uber' ? 'gradShareUber2' :
+                    entry.name === '99' ? 'gradShare992' :
+                    entry.name === 'Maxim' ? 'gradShareMaxim2' :
+                    entry.name === 'Garupa' ? 'gradShareGarupa2' :
+                    entry.name === 'Urban 66' ? 'gradShareUrban2' :
+                    'gradShareTKX2'
+                  })`} stroke="#0b1220" strokeWidth={2} />
+                ))}
+              </Bar>
+              <Line yAxisId="left" type="monotone" dataKey="satisfaction" name="Satisfação" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 4, fill: '#eab308', stroke: '#0b1220', strokeWidth: 1 }} />
+              <Line yAxisId="ticket" type="monotone" dataKey="ticket" name="Ticket médio" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b', stroke: '#0b1220', strokeWidth: 1 }} />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderMarketing = () => {
     const data = [
@@ -311,7 +519,7 @@ const App: React.FC = () => {
       { name: 'Parcerias', value: currentParams.parceriasBares },
       { name: 'Indique/Ganhe', value: currentParams.indiqueGanhe },
     ];
-    const colors = ['#EAB308', '#64748b', '#22c55e', '#f97316', '#a78bfa', '#14b8a6'];
+    const colors = ['#0b1220', '#f59e0b', '#eab308', '#e5e7eb', '#ef4444', '#fbbf24'];
     return (
       <div className="space-y-6">
         <div className="space-y-6">
@@ -336,18 +544,60 @@ const App: React.FC = () => {
             ))}
           </div>
         </div>
+        
+        {/* TKX DYNAMIC CONTROL: Sliders de Fidelidade */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-black uppercase text-orange-500">🎯 TKX Dynamic Control - Fidelidade</h3>
+            <span className="text-[10px] text-slate-400 px-2 py-1 rounded-full bg-slate-800 border border-slate-700">Elite Drivers + Passageiros + Reserva Operacional</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {FIDELITY_SLIDERS.map((s) => (
+              <div key={s.paramKey} className="space-y-2">
+                <div className="flex justify-between text-[10px] uppercase font-black text-slate-400">
+                  <span>{s.label}</span>
+                  <span className="text-orange-400 text-sm">
+                    {s.paramKey === 'reservaOperacionalGMV' ? `${(currentParams as any)[s.paramKey].toFixed(1)}%` : formatCurrency((currentParams as any)[s.paramKey])}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={s.min}
+                  max={s.max}
+                  step={s.step}
+                  value={(currentParams as any)[s.paramKey]}
+                  onChange={(e) => updateCurrentParam(s.paramKey as any, Number(e.target.value))}
+                  className="w-full accent-orange-500"
+                />
+                <div className="text-[9px] text-slate-500">{s.description}</div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/5 border border-orange-500/30 p-4 rounded-xl">
+            <div className="text-[10px] uppercase text-orange-400 font-black mb-2">💡 Consolidação de Campanhas</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-300">
+              <div>
+                <span className="font-bold text-orange-300">Motoristas:</span> Take Rate Ponderado 13,2% (Meritocracia 15% a 10%). Premiação semestral para 20 melhores.
+              </div>
+              <div>
+                <span className="font-bold text-orange-300">Passageiros:</span> Gatilhos de 500, 1.000 e 2.000 corridas (Cashback, Select e Experiência/Sorteio).
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">{" "}
           <div className="text-[10px] uppercase text-slate-400 font-black mb-4">Distribuição de Verba</div>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={data} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={3}>
                 {data.map((_, i) => (
-                  <Cell key={i} fill={colors[i % colors.length]} />
+                  <Cell key={i} fill={colors[i % colors.length]} stroke="#0b1220" strokeWidth={1.2} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ backgroundColor: '#020617', border: 'none', fontSize: 10 }} />
-              <Legend wrapperStyle={{ fontSize: 10 }} verticalAlign="bottom" height={36} />
+              <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+              <Legend content={<NeutralLegend />} verticalAlign="bottom" height={36} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -373,6 +623,122 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+      </div>
+    );
+  };
+
+  const renderHeatDemand = () => {
+    const heatZones = [
+      { name: 'Centro / Estação', status: 'Crítico', peak: '12h-14h / 18h-19h', load: 95 },
+      { name: 'Leporace / Brasilândia', status: 'Alto', peak: '06h-08h / 17h-19h', load: 82 },
+      { name: 'City Petrópolis / Aeroporto', status: 'Médio', peak: '07h-09h / Finais de Semana', load: 68 },
+      { name: 'Distrito Industrial', status: 'Focal', peak: '05h-06h / 14h-15h / 22h-23h', load: 55 },
+    ];
+    const statusColor: Record<string, string> = {
+      Crítico: '#ef4444',
+      Alto: '#f59e0b',
+      Médio: '#eab308',
+      Focal: '#fbbf24',
+    };
+    const ticketBench = [
+      { name: 'Uber', value: 20 },
+      { name: '99', value: 18 },
+      { name: 'Maxim', value: 14.8 },
+      { name: 'Garupa', value: 21 },
+      { name: 'Urban 66', value: 17.5 },
+      { name: 'TKX Franca', value: 18.5 },
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <div className="text-[10px] uppercase text-slate-400 font-black">Zonas de Calor e Demanda Franca-SP</div>
+              <div className="text-xs text-slate-500">Taxa de embarque por cluster horário</div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+              {Object.entries(statusColor).map(([label, color]) => (
+                <span key={label} className="flex items-center gap-1 px-2 py-1 rounded-full bg-slate-800/70 border border-slate-700/60">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 h-[320px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={heatZones} layout="vertical" margin={{ left: 60 }}>
+                  <defs>
+                    <linearGradient id="gradHeatCritico" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#7f1d1d" />
+                      <stop offset="100%" stopColor="#ef4444" />
+                    </linearGradient>
+                    <linearGradient id="gradHeatAlto" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#c2410c" />
+                      <stop offset="100%" stopColor="#f59e0b" />
+                    </linearGradient>
+                    <linearGradient id="gradHeatMedio" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#a16207" />
+                      <stop offset="100%" stopColor="#eab308" />
+                    </linearGradient>
+                    <linearGradient id="gradHeatFocal" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ca8a04" />
+                      <stop offset="100%" stopColor="#fbbf24" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <XAxis type="number" domain={[0, 100]} stroke="#475569" fontSize={11} tickFormatter={(v) => `${v}%`} />
+                  <YAxis type="category" dataKey="name" stroke="#475569" width={140} fontSize={11} />
+                  <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                  <Bar dataKey="load" radius={[0, 8, 8, 0]}>
+                    {heatZones.map((z, idx) => (
+                      <Cell key={z.name} fill={`url(#${
+                        z.status === 'Crítico' ? 'gradHeatCritico' :
+                        z.status === 'Alto' ? 'gradHeatAlto' :
+                        z.status === 'Médio' ? 'gradHeatMedio' :
+                        'gradHeatFocal'
+                      })`} stroke="#0b1220" strokeWidth={2.5} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-3">
+              {heatZones.map((z) => (
+                <div key={z.name} className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-[11px] uppercase text-slate-300 font-bold">{z.name}</div>
+                      <div className="text-[11px] text-slate-400">Pico: {z.peak}</div>
+                    </div>
+                    <span className="text-[11px] font-black px-2 py-1 rounded-full" style={{ backgroundColor: `${statusColor[z.status]}22`, color: statusColor[z.status] }}>{z.status}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Taxa de embarque</span>
+                    <span className="text-sm font-black" style={{ color: statusColor[z.status] }}>{z.load}%</span>
+                  </div>
+                  <div className="mt-1 w-full h-2 bg-slate-900/70 rounded-full overflow-hidden">
+                    <div className="h-2 rounded-full" style={{ width: `${z.load}%`, backgroundColor: statusColor[z.status] }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+          <div className="text-[10px] uppercase text-slate-400 font-black mb-3">Benchmarks Tickets Locais</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {ticketBench.map((t) => (
+              <div key={t.name} className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-lg flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-200">{t.name}</div>
+                <div className="text-lg font-black text-yellow-300">{formatCurrency(t.value)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   };
@@ -493,11 +859,17 @@ const App: React.FC = () => {
             <XAxis dataKey="month" stroke="#475569" fontSize={10} />
             <YAxis yAxisId="left" stroke="#475569" fontSize={10} />
             <YAxis yAxisId="right" orientation="right" stroke="#475569" fontSize={10} />
-            <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', fontSize: 10, borderRadius: 8 }} />
-            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
-            <Bar yAxisId="left" dataKey="rides" name="Corridas" fill="#EAB308" radius={[4, 4, 0, 0]} opacity={0.8} />
-            <Line yAxisId="right" type="monotone" dataKey="drivers" name="Frota" stroke="#64748b" strokeWidth={2} dot={false} />
-            <Line yAxisId="right" type="monotone" dataKey="users" name="Usuários" stroke="#38bdf8" strokeWidth={2} dot={false} />
+            <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+            <Legend content={<NeutralLegend />} />
+            <defs>
+              <linearGradient id="gradRidesWarm" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#fbbf24" />
+                <stop offset="100%" stopColor="#f59e0b" />
+              </linearGradient>
+            </defs>
+            <Bar yAxisId="left" dataKey="rides" name="Corridas" fill="url(#gradRidesWarm)" radius={[8, 8, 2, 2]} opacity={0.95} stroke="#0b1220" strokeWidth={2} />
+            <Line yAxisId="right" type="monotone" dataKey="drivers" name="Frota" stroke="#ef4444" strokeWidth={3} dot={false} />
+            <Line yAxisId="right" type="monotone" dataKey="users" name="Usuários" stroke="#e5e7eb" strokeWidth={3} dot={false} strokeDasharray="5 3" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -554,14 +926,11 @@ const App: React.FC = () => {
               <XAxis dataKey="monthName" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
               <YAxis yAxisId="left" tick={{ fontSize: 9 }} stroke="#64748b" />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} stroke="#94a3b8" />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#020617', border: 'none', borderRadius: 8, fontSize: 10 }}
-                formatter={(value) => typeof value === 'number' ? formatCurrency(value) : value}
-              />
-              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
-              <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke="#10b981" strokeWidth={2} dot={false} />
-              <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="#f59e0b" strokeWidth={2} dot={false} />
-              <Line yAxisId="right" type="monotone" dataKey="ratio" name="LTV/CAC Ratio" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+              <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+              <Legend content={<NeutralLegend />} />
+              <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
+              <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="#ef4444" strokeWidth={2.5} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="ratio" name="LTV/CAC Ratio" stroke="#eab308" strokeWidth={2.5} dot={false} strokeDasharray="4 2" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -661,92 +1030,108 @@ const App: React.FC = () => {
       return { type: t as ScenarioType, blocoJunho, blocoDez, paybackMonth };
     });
 
-    const renderMetricRow = (label: string, data: { value: number; delta: number | null }) => {
-      const isPeople = label.includes('Usuários') || label.includes('Frota');
-      const isPercent = label.toLowerCase().includes('margem');
-      const valueNode = isPercent
-        ? <span className="font-mono font-semibold">{data.value.toFixed(1)}%</span>
-        : isPeople
-          ? <span className="font-mono font-semibold">{formatNumber(data.value)}</span>
-          : <span className="font-mono font-semibold">{formatCurrency(data.value)}</span>;
-      return (
-        <div className="flex items-center justify-between text-xs text-slate-200">
-          <span className="text-slate-400">{label}</span>
-          <div className="flex items-center gap-2">
-            {valueNode}
-            <DeltaBadge delta={data.delta} />
-          </div>
-        </div>
-      );
-    };
     return (
       <div className="space-y-6">
-        <h3 className="text-sm font-black uppercase text-yellow-500">Comparativo Semestral (Cards)</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {semestralComparisons.map((s) => (
-            <div key={s.type} className="bg-slate-900/70 border border-slate-800/60 rounded-xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] uppercase text-slate-400 font-black">{SCENARIO_LABEL[s.type]}</div>
-                  <div className="text-xs text-slate-500">Curva S + MPD 10,1</div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-slate-800 text-yellow-400 font-black block">36m</span>
-                  <div className="text-[10px] text-slate-400 mt-1">Payback: {s.paybackMonth ? `M${s.paybackMonth}` : '>36m'}</div>
-                </div>
-              </div>
-
-              {/* 1º Semestre (Junho) */}
-              <div className="space-y-2">
-                <div className="text-[10px] uppercase text-yellow-400 font-black">1º Semestre (Junho)</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {s.blocoJunho.map((card, idx) => (
-                    <div key={`jun-${card.month}`} className="bg-slate-800/60 border border-slate-700/60 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-black text-slate-200">
-                        <span>{idx === 0 ? 'Ano 1 (M6)' : idx === 1 ? 'Ano 2 (M18)' : 'Ano 3 (M30)'}</span>
-                        <span className="text-slate-500">vs {idx === 0 ? '—' : idx === 1 ? 'M6' : 'M18'}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {renderMetricRow('Frota', card.drivers)}
-                        {renderMetricRow('Usuários', card.users)}
-                        {renderMetricRow('Receita Bruta', card.revenue)}
-                        {renderMetricRow('Take Rate', card.takeRate)}
-                        {renderMetricRow('Impostos', card.taxes)}
-                        {renderMetricRow('Custos Operacionais', card.opCosts)}
-                        {renderMetricRow('Margem EBITDA', card.ebitdaMargin)}
-                        {renderMetricRow('Lucro Líquido', card.profit)}
+        <h3 className="text-sm font-black uppercase text-yellow-500">Comparativo Semestral (limpo)</h3>
+        <div className="space-y-4">
+          {semestralComparisons.map((s) => {
+            const june = s.blocoJunho;
+            const dec = s.blocoDez;
+            const renderRow = (label: string, key: keyof typeof june[0], isPercent = false, isPeople = false, isProfitRow = false) => (
+              <div className="grid grid-cols-4 items-center px-3 py-2 rounded-lg bg-slate-800/40">
+                <span className="text-[11px] uppercase text-slate-400 font-bold">{isProfitRow ? 'Lucro / Prejuízo' : label}</span>
+                {[june[0], june[1], june[2]].map((card, idx) => {
+                  const metric = (card as any)[key];
+                  const value = metric?.value ?? 0;
+                  const displayValue = isProfitRow ? profitValue(value) : value;
+                  const formatted = isPercent ? `${value.toFixed(1)}%` : isPeople ? formatNumber(displayValue) : formatCurrency(displayValue);
+                  const color = isProfitRow ? profitColor(value) : 'text-slate-200';
+                  const labelTag = isProfitRow ? profitLabel(value, 'Lucro', 'Prejuízo') : null;
+                  return (
+                    <div key={`${label}-jun-${idx}`} className="flex flex-col items-end gap-1 text-xs text-slate-200">
+                      <span className={`font-mono font-semibold ${color}`}>{formatted}</span>
+                      <div className="flex items-center gap-2">
+                        <DeltaBadge delta={metric?.delta ?? null} />
+                        {labelTag && <span className={`text-[10px] font-bold ${color}`}>{labelTag}</span>}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
+            );
 
-              {/* 2º Semestre (Dezembro) */}
-              <div className="space-y-2">
-                <div className="text-[10px] uppercase text-yellow-400 font-black">2º Semestre (Dezembro)</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {s.blocoDez.map((card, idx) => (
-                    <div key={`dez-${card.month}`} className="bg-slate-800/60 border border-slate-700/60 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-black text-slate-200">
-                        <span>{idx === 0 ? 'Ano 1 (M12)' : idx === 1 ? 'Ano 2 (M24)' : 'Ano 3 (M36)'}</span>
-                        <span className="text-slate-500">vs {idx === 0 ? '—' : idx === 1 ? 'M12' : 'M24'}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {renderMetricRow('Frota', card.drivers)}
-                        {renderMetricRow('Usuários', card.users)}
-                        {renderMetricRow('Receita Bruta', card.revenue)}
-                        {renderMetricRow('Take Rate', card.takeRate)}
-                        {renderMetricRow('Impostos', card.taxes)}
-                        {renderMetricRow('Custos Operacionais', card.opCosts)}
-                        {renderMetricRow('Margem EBITDA', card.ebitdaMargin)}
-                        {renderMetricRow('Lucro Líquido', card.profit)}
+            const renderRowDec = (label: string, key: keyof typeof dec[0], isPercent = false, isPeople = false, isProfitRow = false) => (
+              <div className="grid grid-cols-4 items-center px-3 py-2 rounded-lg bg-slate-800/30">
+                <span className="text-[11px] uppercase text-slate-400 font-bold">{isProfitRow ? 'Lucro / Prejuízo' : label}</span>
+                {[dec[0], dec[1], dec[2]].map((card, idx) => {
+                  const metric = (card as any)[key];
+                  const value = metric?.value ?? 0;
+                  const displayValue = isProfitRow ? profitValue(value) : value;
+                  const formatted = isPercent ? `${value.toFixed(1)}%` : isPeople ? formatNumber(displayValue) : formatCurrency(displayValue);
+                  const color = isProfitRow ? profitColor(value) : 'text-slate-200';
+                  const labelTag = isProfitRow ? profitLabel(value, 'Lucro', 'Prejuízo') : null;
+                  return (
+                    <div key={`${label}-dec-${idx}`} className="flex flex-col items-end gap-1 text-xs text-slate-200">
+                      <span className={`font-mono font-semibold ${color}`}>{formatted}</span>
+                      <div className="flex items-center gap-2">
+                        <DeltaBadge delta={metric?.delta ?? null} />
+                        {labelTag && <span className={`text-[10px] font-bold ${color}`}>{labelTag}</span>}
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            );
+
+            return (
+              <div key={s.type} className="bg-slate-900/80 border border-slate-800/70 rounded-xl p-4 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase text-slate-400 font-black">{SCENARIO_LABEL[s.type]}</div>
+                    <div className="text-xs text-slate-500">Curva S · MPD 10,1 · Projeção final</div>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-slate-300">
+                    <span className="px-2 py-1 rounded-full bg-slate-800 text-yellow-400 font-black">Projeção final</span>
+                    <span className="px-2 py-1 rounded-full bg-slate-800 text-emerald-400 font-black">Payback: {s.paybackMonth ? `M${s.paybackMonth}` : '>36m'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-[11px] uppercase text-yellow-400 font-black">
+                    <span>Junho: M6 · M18 · M30</span>
+                    <span className="text-slate-500">Comparação ano a ano</span>
+                  </div>
+                  <div className="space-y-1">
+                    {renderRow('Frota', 'drivers', false, true)}
+                    {renderRow('Usuários', 'users', false, true)}
+                    {renderRow('Receita Bruta', 'revenue')}
+                    {renderRow('Take Rate', 'takeRate')}
+                    {renderRow('Impostos', 'taxes')}
+                    {renderRow('Custos Operacionais', 'opCosts')}
+                    {renderRow('Margem EBITDA', 'ebitdaMargin', true)}
+                    {renderRow('Lucro Líquido', 'profit', false, false, true)}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-[11px] uppercase text-yellow-400 font-black">
+                    <span>Dezembro: M12 · M24 · M36</span>
+                    <span className="text-slate-500">Comparação ano a ano</span>
+                  </div>
+                  <div className="space-y-1">
+                    {renderRowDec('Frota', 'drivers', false, true)}
+                    {renderRowDec('Usuários', 'users', false, true)}
+                    {renderRowDec('Receita Bruta', 'revenue')}
+                    {renderRowDec('Take Rate', 'takeRate')}
+                    {renderRowDec('Impostos', 'taxes')}
+                    {renderRowDec('Custos Operacionais', 'opCosts')}
+                    {renderRowDec('Margem EBITDA', 'ebitdaMargin', true)}
+                    {renderRowDec('Lucro Líquido', 'profit', false, false, true)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <h3 className="text-sm font-black uppercase text-yellow-500">Comparação de Cenários (36 meses)</h3>
@@ -764,7 +1149,7 @@ const App: React.FC = () => {
             </div>
           ))}
         </div>
-        <h3 className="text-sm font-black uppercase text-yellow-500 mt-6">Lucro por Ano (comparação)</h3>
+        <h3 className="text-sm font-black uppercase text-yellow-500 mt-6">Lucro / Prejuízo por Ano (comparação)</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {scenariosData.map((s) => (
             <div key={s.type + '_yearly'} className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
@@ -788,12 +1173,12 @@ const App: React.FC = () => {
               <CartesianGrid stroke="#1e293b" vertical={false} />
               <XAxis dataKey="month" stroke="#475569" fontSize={10} />
               <YAxis stroke="#475569" fontSize={10} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-              <Tooltip contentStyle={{ backgroundColor: '#020617', border: 'none', fontSize: 10 }} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Tooltip content={<DarkTooltip />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+              <Legend content={<NeutralLegend />} />
               <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" />
-              <Line type="monotone" dataKey="Realista" stroke="#22c55e" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="Pessimista" stroke="#f43f5e" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-              <Line type="monotone" dataKey="Otimista" stroke="#38bdf8" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="Realista" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="Pessimista" stroke="#ef4444" strokeWidth={2.5} strokeDasharray="4 2" dot={false} />
+              <Line type="monotone" dataKey="Otimista" stroke="#eab308" strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -821,8 +1206,8 @@ const App: React.FC = () => {
             <div className="text-2xl font-black text-white">{paybackIndex !== -1 ? `Mês ${results[paybackIndex].month}` : '> 36m'}</div>
           </div>
           <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-            <div className="text-[10px] uppercase text-slate-400 font-black">Lucro Acumulado 36m</div>
-            <div className={`text-2xl font-black ${totalProfit36 >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(totalProfit36)}</div>
+            <div className="text-[10px] uppercase text-slate-400 font-black">{profitLabel(totalProfit36, 'Lucro Acumulado 36m', 'Prejuízo Acumulado 36m')}</div>
+            <div className={`text-2xl font-black ${profitColor(totalProfit36)}`}><CurrencyDisplay value={profitValue(totalProfit36)} colorClass={profitColor(totalProfit36)} /></div>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -841,7 +1226,9 @@ const App: React.FC = () => {
             <div key={y.label} className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="text-[10px] uppercase text-slate-400 font-black">{y.label}</div>
               <div className="text-lg font-black text-white mt-1">Receita: {formatCurrency(y.data.revenue)}</div>
-              <div className={`text-sm ${y.data.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>Lucro: {formatCurrency(y.data.profit)}</div>
+              <div className={`text-sm ${profitColor(y.data.profit)}`}>
+                {profitLabel(y.data.profit)}: <CurrencyDisplay value={profitValue(y.data.profit)} colorClass={profitColor(y.data.profit)} />
+              </div>
               <div className="text-sm text-slate-300">Corridas: {formatNumber(y.data.rides)}</div>
               <div className="text-sm text-slate-300">Usuários: {formatNumber(y.data.finalUsers)}</div>
               <div className="text-sm text-slate-300">Frota: {formatNumber(y.data.finalDrivers)}</div>
@@ -869,7 +1256,10 @@ const App: React.FC = () => {
               <th className="p-2 text-right">Marketing</th>
               <th className="p-2 text-right">Tech</th>
               <th className="p-2 text-right">Variáveis</th>
-              <th className="p-2 text-right">Lucro</th>
+              <th className="p-2 text-right">Elite Drivers</th>
+              <th className="p-2 text-right">Fid. Passag.</th>
+              <th className="p-2 text-right">Res. Oper.</th>
+              <th className="p-2 text-right">Lucro / Prejuízo</th>
               <th className="p-2 text-right">Margem</th>
             </tr>
           </thead>
@@ -886,7 +1276,12 @@ const App: React.FC = () => {
                 <td className="p-2 text-right text-red-300"><CurrencyDisplay value={row.marketing} /></td>
                 <td className="p-2 text-right text-red-300"><CurrencyDisplay value={row.tech} /></td>
                 <td className="p-2 text-right text-red-300"><CurrencyDisplay value={row.variableCosts} /></td>
-                <td className={`p-2 text-right font-bold ${row.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}><CurrencyDisplay value={row.netProfit} /></td>
+                <td className="p-2 text-right text-orange-300"><CurrencyDisplay value={row.eliteDriversCost} /></td>
+                <td className="p-2 text-right text-orange-300"><CurrencyDisplay value={row.fidelidadePassageirosCost} /></td>
+                <td className="p-2 text-right text-orange-300"><CurrencyDisplay value={row.reservaOperacionalCost} /></td>
+                <td className={`p-2 text-right font-bold ${profitColor(row.netProfit)}`}>
+                  <CurrencyDisplay value={profitValue(row.netProfit)} colorClass={profitColor(row.netProfit)} />
+                </td>
                 <td className={`p-2 text-right ${row.margin >= 0 ? 'text-green-400' : 'text-red-400'}`}><PercentDisplay value={row.margin} /></td>
               </tr>
             ))}
@@ -902,6 +1297,40 @@ const App: React.FC = () => {
           <div><span className="font-semibold text-slate-200">Fixos:</span> R$8k escalado (+50%/semestre)</div>
           <div><span className="font-semibold text-slate-200">Marketing:</span> R$3k + R$1,5/novo usuário</div>
           <div><span className="font-semibold text-slate-200">Tech:</span> R$0,15/corrida + Bancário (2% GMV)</div>
+          <div><span className="font-semibold text-orange-400">Elite Drivers:</span> Premiação semestral (M6, M12, M18...)</div>
+          <div><span className="font-semibold text-orange-400">Fid. Passageiros:</span> Sorteio anual (M12, M24, M36)</div>
+          <div><span className="font-semibold text-orange-400">Reserva Operacional:</span> % GMV mensal (cashbacks/gatilhos)</div>
+        </div>
+      </div>
+      
+      {/* Resumo de Investimento em Fidelidade 36m */}
+      <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/5 border border-orange-500/30 p-4 rounded-xl">
+        <div className="text-[10px] uppercase text-orange-400 font-black mb-3">💰 Investimento Total em Fidelidade (36 meses)</div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-xs text-slate-400 mb-1">Elite Drivers (6x)</div>
+            <div className="text-2xl font-black text-orange-300">{formatCurrency(currentParams.eliteDriversSemestral * 6)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-400 mb-1">Fidelidade Pass. (3x)</div>
+            <div className="text-2xl font-black text-orange-300">{formatCurrency(currentParams.fidelidadePassageirosAnual * 3)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-400 mb-1">Reserva Operacional</div>
+            <div className="text-2xl font-black text-orange-300">
+              {formatCurrency(projections.reduce((sum, m) => sum + m.reservaOperacionalCost, 0))}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-400 mb-1">Total Fidelidade</div>
+            <div className="text-3xl font-black text-orange-400">
+              {formatCurrency(
+                (currentParams.eliteDriversSemestral * 6) + 
+                (currentParams.fidelidadePassageirosAnual * 3) + 
+                projections.reduce((sum, m) => sum + m.reservaOperacionalCost, 0)
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -917,7 +1346,12 @@ const App: React.FC = () => {
             <div className="space-y-1 text-xs">
               <div><span className="text-slate-400">GMV:</span> <span className="font-semibold text-white"><CurrencyDisplay value={audit.totalGMV} /></span></div>
               <div><span className="text-slate-400">Receita:</span> <span className="font-semibold text-green-400"><CurrencyDisplay value={audit.totalRevenue} /></span></div>
-              <div><span className="text-slate-400">Lucro:</span> <span className={`font-semibold ${audit.totalNetProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}><CurrencyDisplay value={audit.totalNetProfit} /></span></div>
+              <div>
+                <span className="text-slate-400">{profitLabel(audit.totalNetProfit)}:</span>{' '}
+                <span className={`font-semibold ${profitColor(audit.totalNetProfit)}`}>
+                  <CurrencyDisplay value={profitValue(audit.totalNetProfit)} colorClass={profitColor(audit.totalNetProfit)} />
+                </span>
+              </div>
             </div>
           </div>
         ))}
@@ -1031,7 +1465,9 @@ const App: React.FC = () => {
           <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
             <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Margem de Lucro (M12)</div>
             <div className={`text-lg font-black ${profitMargin > 10 ? 'text-green-400' : profitMargin > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{profitMargin.toFixed(1)}%</div>
-            <div className="text-[9px] text-slate-400 mt-1">Lucro: <CurrencyDisplay value={m12?.netProfit} /></div>
+            <div className="text-[9px] text-slate-400 mt-1">
+              {profitLabel(m12?.netProfit)}: <CurrencyDisplay value={profitValue(m12?.netProfit)} colorClass={profitColor(m12?.netProfit)} />
+            </div>
           </div>
         </div>
         
@@ -1047,9 +1483,9 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="card-gradient hover-lift bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700/40 p-4 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Lucro Acumulado (36 meses)</div>
-            <div className={`text-lg font-black ${m36?.cumulativeProfit && m36.cumulativeProfit > 0 ? 'text-green-400' : 'text-red-400'}`}>
-              <CurrencyDisplay value={m36?.cumulativeProfit} />
+            <div className="text-[7px] uppercase text-slate-400 font-bold tracking-[0.08em] mb-2">Lucro / Prejuízo Acumulado (36 meses)</div>
+            <div className={`text-lg font-black ${profitColor(m36?.cumulativeProfit)}`}>
+              <CurrencyDisplay value={profitValue(m36?.cumulativeProfit)} colorClass={profitColor(m36?.cumulativeProfit)} />
             </div>
             <div className="text-[9px] text-slate-400 mt-2">Cenário: <span className="font-semibold">{SCENARIO_LABEL[scenario]}</span></div>
           </div>
@@ -1094,6 +1530,7 @@ const App: React.FC = () => {
         return (
           <div className="space-y-6">
             {renderSummaryCards()}
+            {renderHeatDemand()}
             {renderMarket()}
           </div>
         );
@@ -1193,9 +1630,9 @@ const App: React.FC = () => {
                 <div className="text-lg font-black text-gradient-gold"><CurrencyDisplay value={projections.reduce((acc, r) => acc + r.grossRevenue, 0)} /></div>
               </div>
               <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/30">
-                <div className="text-[7px] text-slate-400 uppercase font-bold mb-1">Lucro acumulado</div>
-                <div className={`text-lg font-black ${lastMonth.accumulatedProfit >= 0 ? 'text-gradient-green' : 'text-gradient-red'}`}>
-                  <CurrencyDisplay value={lastMonth.accumulatedProfit} />
+                <div className="text-[7px] text-slate-400 uppercase font-bold mb-1">{profitLabel(lastMonth.accumulatedProfit, 'Lucro acumulado', 'Prejuízo acumulado')}</div>
+                <div className={`text-lg font-black ${profitColor(lastMonth.accumulatedProfit, 'text-gradient-green', 'text-gradient-red')}`}>
+                  <CurrencyDisplay value={profitValue(lastMonth.accumulatedProfit)} colorClass={profitColor(lastMonth.accumulatedProfit, 'text-gradient-green', 'text-gradient-red')} />
                 </div>
               </div>
             </div>

@@ -141,7 +141,17 @@ export const calculateProjections = (
     const fixedBase = params.applyMinimumCosts ? 8000 : 0;
     const currentFixedCosts = fixedBase * Math.pow(1.5, semestersPassed);
     
-    const ebitda = takeRateRevenue - taxes - variableCosts - currentFixedCosts - totalTech - totalMarketing;
+    // CUSTOS DE FIDELIDADE TKX DYNAMIC CONTROL
+    // Elite Drivers: Semestral (meses 6, 12, 18, 24, 30, 36)
+    const eliteDriversCost = (m > 0 && (m + 1) % 6 === 0) ? params.eliteDriversSemestral : 0;
+    // Fidelidade Passageiros: Anual (meses 12, 24, 36)
+    const fidelidadePassageirosCost = (m > 0 && (m + 1) % 12 === 0) ? params.fidelidadePassageirosAnual : 0;
+    // Reserva Operacional: Percentual do GMV (mensal)
+    const reservaOperacionalCost = grossRevenue * (params.reservaOperacionalGMV / 100);
+    
+    const totalFidelityCosts = eliteDriversCost + fidelidadePassageirosCost + reservaOperacionalCost;
+    
+    const ebitda = takeRateRevenue - taxes - variableCosts - currentFixedCosts - totalTech - totalMarketing - totalFidelityCosts;
     const netProfit = ebitda; 
     
     accumulatedProfit += netProfit;
@@ -174,6 +184,9 @@ export const calculateProjections = (
       marketing: totalMarketing,
       tech: totalTech, 
       campaignCosts,
+      eliteDriversCost,
+      fidelidadePassageirosCost,
+      reservaOperacionalCost,
       ebitda,
       netProfit,
       accumulatedProfit,
