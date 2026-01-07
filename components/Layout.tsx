@@ -26,6 +26,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onEx
     { id: 10, label: 'Geral', icon: <LayoutDashboard size={22} /> },
     { id: 11, label: 'VISÃO 360º', icon: <Briefcase size={22} /> },
     { id: 12, label: 'RESUMO EXECUTIVO', icon: <Zap size={22} /> },
+    { id: 13, label: 'COMPARAR', icon: <BarChart3 size={22} /> },
+    { id: 14, label: 'TENDÊNCIAS', icon: <TrendingUp size={22} /> },
   ];
 
   return (
