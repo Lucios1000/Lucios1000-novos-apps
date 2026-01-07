@@ -588,7 +588,27 @@ const App: React.FC = () => {
       const profitY1 = y1.reduce((a, m) => a + m.netProfit, 0);
       const profitY2 = y2.reduce((a, m) => a + m.netProfit, 0);
       const profitY3 = y3.reduce((a, m) => a + m.netProfit, 0);
-      return { type: t as ScenarioType, totalProfit, breakEvenIdx, paybackIdx, share: (last.users / FRANCA_STATS.digitalUsers) * 100, profitY1, profitY2, profitY3 };
+      const finalMarginEbitda = last.takeRateRevenue > 0 ? (last.ebitda / last.takeRateRevenue) * 100 : 0;
+      const finalLtvCac = last.cac > 0 ? last.ltv / last.cac : 0;
+      const paybackWindow = paybackIdx === -1 ? proj : proj.slice(0, paybackIdx + 1);
+      const paybackDepth = paybackWindow.reduce((min, r) => Math.min(min, r.accumulatedProfit), 0);
+      const bottleneck12 = proj.slice(0, 12).filter((r) => r.isSupplyBottleneck).length;
+      const bottleneck36 = proj.filter((r) => r.isSupplyBottleneck).length;
+      return {
+        type: t as ScenarioType,
+        totalProfit,
+        breakEvenIdx,
+        paybackIdx,
+        share: (last.users / FRANCA_STATS.digitalUsers) * 100,
+        profitY1,
+        profitY2,
+        profitY3,
+        finalMarginEbitda,
+        finalLtvCac,
+        paybackDepth,
+        bottleneck12,
+        bottleneck36,
+      };
     });
 
     const formatDelta = (current: number, previous?: number | null) => {
@@ -736,7 +756,11 @@ const App: React.FC = () => {
               <div className="text-[10px] uppercase text-slate-400 font-black">{SCENARIO_LABEL[s.type]}</div>
               <div className="text-sm text-slate-300">Break-even: {s.breakEvenIdx !== -1 ? `Mês ${s.breakEvenIdx + 1}` : '—'}</div>
               <div className="text-sm text-slate-300">Payback: {s.paybackIdx !== -1 ? `Mês ${s.paybackIdx + 1}` : '—'}</div>
-              <div className="text-sm text-slate-300">Share M36: {s.share.toFixed(1)}%</div>
+              <div className="text-sm text-slate-300">Margem EBITDA (projeção final): {s.finalMarginEbitda.toFixed(1)}%</div>
+              <div className="text-sm text-slate-300">LTV/CAC (projeção final): {s.finalLtvCac.toFixed(2)}x</div>
+              <div className="text-sm text-slate-300">Pior caixa até payback: {formatCurrency(s.paybackDepth)}</div>
+              <div className="text-sm text-slate-300">Gargalo de oferta: {s.bottleneck12}/12 • {s.bottleneck36}/36</div>
+              <div className="text-sm text-slate-300">Share (M36): {s.share.toFixed(1)}%</div>
             </div>
           ))}
         </div>
