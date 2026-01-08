@@ -27,6 +27,10 @@ jobs:
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           awk '/^## /{if (p) exit; p=1} p' CHANGELOG.md > RELEASE_NOTES.md || true
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Using release template as fallback"
+            cp .github/RELEASE_TEMPLATE.md RELEASE_NOTES.md
+          fi
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           cat RELEASE_NOTES.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT

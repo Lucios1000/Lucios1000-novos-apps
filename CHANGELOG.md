@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.1 — Unreleased
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+### Performance
+- 
+
+### Docs
+- 
+
 ## v0.1.0 — TKX Franca (PWA + Otimizações)
 
 ### Added
