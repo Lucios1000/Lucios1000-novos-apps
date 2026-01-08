@@ -1,0 +1,69 @@
+name: Auto-open PR for feat branches
+
+on:
+  push:
+    branches:
+      - 'feat/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or find PR and label automerge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const headRef = context.ref.replace('refs/heads/', '');
+            const base = 'main';
+
+            // Find existing open PR from this branch
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head: `${owner}:${headRef}`,
+              per_page: 1
+            });
+
+            let pr;
+            if (prs.length === 0) {
+              core.info(`No open PR found from ${headRef}. Creating one...`);
+              const created = await github.rest.pulls.create({
+                owner,
+                repo,
+                head: headRef,
+                base,
+                title: `feat: ${headRef}`,
+                body: 'PR auto-criado pelo workflow auto-open-pr.',
+                draft: false
+              });
+              pr = created.data;
+            } else {
+              pr = prs[0];
+              core.info(`Found existing PR #${pr.number}`);
+              if (pr.draft) {
+                try {
+                  await github.rest.pulls.update({ owner, repo, pull_number: pr.number, draft: false });
+                  core.info(`Marked PR #${pr.number} as Ready for review.`);
+                } catch (e) {
+                  core.warning(`Could not mark PR #${pr.number} as ready: ${e.message}`);
+                }
+              }
+            }
+
+            // Ensure label exists on the PR (GitHub will create if missing via addLabels)
+            try {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['automerge'] });
+              core.info(`Label 'automerge' added to PR #${pr.number}.`);
+            } catch (e) {
+              core.warning(`Could not add label to PR #${pr.number}: ${e.message}`);
+            }
+
+            core.setOutput('pr-number', pr.number);
