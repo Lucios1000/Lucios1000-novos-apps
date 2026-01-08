@@ -39,6 +39,21 @@ jobs:
           git archive --format=zip -o "backups/source-${TAG_NAME}.zip" HEAD
           ls -lh backups
 
+      - name: Compute release metadata
+        id: meta
+        shell: bash
+        run: |
+          TAG_NAME="${GITHUB_REF##*/}"
+          if [[ "$TAG_NAME" == *"pre-refactor-campanhas"* ]]; then
+            NAME="Snapshot: Pré-mudanças (Campanhas) — ${TAG_NAME}"
+            BODY="Snapshot pré-mudanças das campanhas. Contém zips de código (source) e build (dist)."
+          else
+            NAME="Snapshot: ${TAG_NAME}"
+            BODY="Snapshot automático gerado pela tag ${TAG_NAME}. Contém zips de código (source) e build (dist)."
+          fi
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "body=${BODY}" >> "$GITHUB_OUTPUT"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -46,5 +61,8 @@ jobs:
             backups/dist-*.zip
             backups/source-*.zip
           generate_release_notes: true
+          name: ${{ steps.meta.outputs.name }}
+          body: ${{ steps.meta.outputs.body }}
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
