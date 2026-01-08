@@ -77,13 +77,24 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
     setLoadingPopulation(true);
     try {
       // Tabela 6579 (Estimativas de População) • Variável 9324 (População estimada)
-      // Período mais recente: 2024
-      const url = `https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2024/variaveis/9324?localidades=N6[${cityId}]`;
-      const res = await fetch(url);
-      const json = await res.json();
-      // Estrutura esperada: { results: [ { series: [ { localidade: { id, nome }, serie: { '2024': 'NNNNNN' } } ] } ] }
-      const valueStr = json?.results?.[0]?.series?.[0]?.serie?.['2024'];
-      const population = Number(valueStr) || 0;
+      // Primeiro tenta 2024; se não houver, cai para 2022 (Censo mais recente)
+      const fetchYear = async (year: number) => {
+        const url = `https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/${year}/variaveis/9324?localidades=N6[${cityId}]`;
+        const res = await fetch(url);
+        const json = await res.json();
+        // Formato oficial v3: array com resultados/series/serie[year]
+        const valueStr = json?.[0]?.resultados?.[0]?.series?.[0]?.serie?.[String(year)]
+          // Alguns ambientes devolvem camelCase 'results'
+          ?? json?.results?.[0]?.series?.[0]?.serie?.[String(year)]
+          // Ou direto em 'series' nível raiz
+          ?? json?.series?.[0]?.serie?.[String(year)];
+        return Number(valueStr) || 0;
+      };
+
+      let population = await fetchYear(2024);
+      if (!population || population <= 0) {
+        population = await fetchYear(2022);
+      }
       updateCurrentParam('cityPopulation', population);
       const samCalc = Math.round(population * (samPercentInput / 100));
       updateCurrentParam('samPopulation', samCalc);
@@ -126,6 +137,7 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
               className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm"
               value={selectedUfId ?? ''}
               onChange={(e) => setSelectedUfId(Number(e.target.value) || null)}
+              data-testid="ibge-uf"
             >
               <option value="">Selecione</option>
               {states.map((uf) => (
@@ -143,6 +155,7 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
               value={currentParams.selectedCityId ?? ''}
               onChange={(e) => handleCitySelect(Number(e.target.value))}
               disabled={!selectedUfId}
+              data-testid="ibge-city"
             >
               <option value="">Selecione</option>
               {cities.map((c) => (
@@ -161,6 +174,7 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
               placeholder="Ex.: 355919"
               value={currentParams.cityPopulation ?? 0}
               onChange={(e) => updateCurrentParam('cityPopulation', Number(e.target.value))}
+              data-testid="tam-input"
             />
             <div className="text-[11px] text-slate-500 mt-1">Busca automática via IBGE ao selecionar município.</div>
           </div>
@@ -187,9 +201,10 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
               value={samPercentInput}
               onChange={(e) => setSamPercentInput(Number(e.target.value))}
               className="w-full accent-yellow-500"
+              data-testid="sam-percent"
             />
             <div className="text-sm font-black text-yellow-400 mt-1">
-              <NumberDisplay value={currentParams.samPopulation} />
+              <span data-testid="sam-output"><NumberDisplay value={currentParams.samPopulation} /></span>
             </div>
           </div>
           <div className="bg-slate-800/40 border border-slate-700/40 p-3 rounded-lg">
@@ -200,12 +215,13 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
               placeholder="Ex.: 15"
               value={currentParams.marketShareTarget ?? 0}
               onChange={(e) => updateCurrentParam('marketShareTarget', Number(e.target.value))}
+              data-testid="market-share"
             />
             <div className="text-[11px] text-slate-500 mt-1">Usado para estimar SOM sobre o SAM.</div>
           </div>
           <div className="bg-slate-800/40 border border-slate-700/40 p-3 rounded-lg">
             <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">SOM (Estimado)</div>
-            <div className="text-2xl font-black text-gradient-gold"><NumberDisplay value={somValue} /></div>
+            <div className="text-2xl font-black text-gradient-gold" data-testid="som-output"><NumberDisplay value={somValue} /></div>
             <div className="text-[11px] text-slate-500">SOM = SAM × Market Share Alvo</div>
           </div>
         </div>
