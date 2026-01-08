@@ -1,0 +1,43 @@
+name: Create Draft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag para o draft (ex.: v0.1.1)'
+        required: true
+      target:
+        description: 'Branch ou commit (padrão: main)'
+        required: false
+        default: 'main'
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Release Notes
+        id: notes
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          awk '/^## /{if (p) exit; p=1} p' CHANGELOG.md > RELEASE_NOTES.md || true
+          if [ ! -s RELEASE_NOTES.md ]; then
+            cp .github/RELEASE_TEMPLATE.md RELEASE_NOTES.md
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat RELEASE_NOTES.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          target_commitish: ${{ github.event.inputs.target }}
+          name: ${{ steps.notes.outputs.tag }} (Draft)
+          body: ${{ steps.notes.outputs.body }}
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

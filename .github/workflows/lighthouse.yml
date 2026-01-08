@@ -1,0 +1,19 @@
+name: Lighthouse (Pages)
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # diário às 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  lhci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit Production URL
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            https://lucios1000.github.io/Lucios1000-novos-apps/
+          configPath: 'lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true

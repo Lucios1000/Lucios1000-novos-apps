@@ -1,0 +1,45 @@
+name: E2E Tests (Playwright)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Start preview server
+        run: |
+          nohup npx vite preview --host 127.0.0.1 --port 4173 > preview.log 2>&1 &
+          npx --yes wait-on@7 http://127.0.0.1:4173
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          CI: true
+        run: npx playwright test
+
+      - name: Upload preview server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-logs
+          path: preview.log
