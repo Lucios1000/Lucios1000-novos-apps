@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import SnapshotModal from './components/SnapshotModal';
 import ComparisonTab from './components/ComparisonTab';
 import TrendAnalysisTab from './components/TrendAnalysisTab';
+import StrategicInputsTab from './components/StrategicInputsTab';
 import { useViability } from './hooks/useViability';
 import { useSnapshots } from './hooks/useSnapshots';
 import { ScenarioType, MonthlyResult } from './types';
@@ -2532,6 +2533,14 @@ const App: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-slate-200">
             <p className="text-sm font-medium">Conteúdo desta aba ainda não foi reescrito. Use as abas de visão geral para acompanhar os números principais.</p>
           </div>
+        );
+      case 16:
+        return (
+          <StrategicInputsTab
+            scenario={scenario}
+            currentParams={currentParams}
+            updateCurrentParam={updateCurrentParam}
+          />
         );
     }
   };

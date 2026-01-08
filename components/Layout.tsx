@@ -30,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onEx
     { id: 12, label: 'RESUMO EXECUTIVO', icon: <Zap size={22} /> },
     { id: 13, label: 'COMPARAR', icon: <BarChart3 size={22} /> },
     { id: 14, label: 'TENDÊNCIAS', icon: <TrendingUp size={22} /> },
+    { id: 16, label: 'INPUTS ESTRATÉGICOS', icon: <Target size={22} /> },
   ];
 
   return (

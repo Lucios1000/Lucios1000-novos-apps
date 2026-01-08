@@ -58,6 +58,13 @@ export const INITIAL_PARAMS: SimulationParams = {
   
   // Meritocracia (Mix de Motoristas)
   takeRateEfetivo: 13.2,
+
+  // Inputs Estratégicos (defaults)
+  selectedCityId: undefined,
+  selectedCityName: undefined,
+  cityPopulation: FRANCA_STATS.population,
+  samPopulation: Math.round(FRANCA_STATS.population * 0.5),
+  marketShareTarget: FRANCA_STATS.marketShareTarget,
 };
 
 export const MONTH_NAMES = [

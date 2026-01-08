@@ -45,6 +45,13 @@ export interface SimulationParams {
   
   // Meritocracia (Mix de Motoristas)
   takeRateEfetivo: number;  // % efetivo (12-14,5%) - reflete mix Full-Time/Part-Time/Esporádicos
+
+  // Inputs Estratégicos (IBGE / Mercado)
+  selectedCityId?: number;
+  selectedCityName?: string;
+  cityPopulation?: number; // TAM
+  samPopulation?: number;  // Editável (default 50% de TAM)
+  marketShareTarget?: number; // % para cálculo de SOM
 }
 
 export interface MonthlyResult {
