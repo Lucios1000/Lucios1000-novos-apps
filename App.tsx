@@ -1074,13 +1074,13 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Corridas estimadas no período</div>
-              <div className="text-2xl font-black text-white"><NumberDisplay value={totalEventRides} /></div>
+              <div className="text-2xl font-black text-white" data-testid="event-total-rides"><NumberDisplay value={totalEventRides} /></div>
               <div className="text-[11px] text-slate-500">Base: {baseEventRides} • Adic.: {ridesExtraPct}%</div>
             </div>
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Tarifa média com dinâmica</div>
-              <div className="text-2xl font-black text-gradient-gold"><CurrencyDisplay value={avgFareAdj} /></div>
-              <div className="text-[11px] text-slate-500">Base: <CurrencyDisplay value={avgFareBase} /> • Dinâmica: {dynamicPct || 0}%</div>
+              <div className="text-2xl font-black text-gradient-gold" data-testid="event-avg-fare-adj"><CurrencyDisplay value={avgFareAdj} /></div>
+              <div className="text-[11px] text-slate-500">Base: <span data-testid="event-avg-fare-base"><CurrencyDisplay value={avgFareBase} /></span> • Dinâmica: {dynamicPct || 0}%</div>
             </div>
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="text-[10px] uppercase text-slate-400 font-black mb-1">% lucro extra por corrida</div>
@@ -1097,15 +1097,15 @@ const App: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 text-slate-200">
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">GMV (corridas x tarifa)</div>
-                  <div className="text-xl font-black text-gradient-gold"><CurrencyDisplay value={gmvEvent} /></div>
+                  <div className="text-xl font-black text-gradient-gold" data-testid="event-gmv"><CurrencyDisplay value={gmvEvent} /></div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Receita plataforma (take rate)</div>
-                  <div className="text-xl font-black text-gradient-gold"><CurrencyDisplay value={plataformaReceita} /></div>
+                  <div className="text-xl font-black text-gradient-gold" data-testid="event-platform-revenue"><CurrencyDisplay value={plataformaReceita} /></div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Corridas/dia necessárias</div>
-                  <div className="text-xl font-black"><NumberDisplay value={corridasDiaNecessarias} /></div>
+                  <div className="text-xl font-black" data-testid="event-rides-per-day-required"><NumberDisplay value={corridasDiaNecessarias} /></div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Corridas por driver/dia</div>
@@ -1118,19 +1118,19 @@ const App: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 text-slate-200">
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Drivers informados</div>
-                  <div className="text-xl font-black"><NumberDisplay value={driversNeeded || 0} /></div>
+                  <div className="text-xl font-black" data-testid="event-drivers-input"><NumberDisplay value={driversNeeded || 0} /></div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Capacidade (corridas)</div>
-                  <div className="text-xl font-black"><NumberDisplay value={driversCapacity} /></div>
+                  <div className="text-xl font-black" data-testid="event-capacity"><NumberDisplay value={driversCapacity} /></div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Cobertura da demanda</div>
-                  <div className={`text-xl font-black ${coberturaPct >= 100 ? 'text-gradient-green' : 'text-yellow-300'}`}><PercentDisplay value={coberturaPct} /></div>
+                  <div className={`text-xl font-black ${coberturaPct >= 100 ? 'text-gradient-green' : 'text-yellow-300'}`} data-testid="event-coverage"><PercentDisplay value={coberturaPct} /></div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase font-bold">Drivers sugeridos</div>
-                  <div className="text-xl font-black"><NumberDisplay value={driversSugeridos} /></div>
+                  <div className="text-xl font-black" data-testid="event-drivers-suggested"><NumberDisplay value={driversSugeridos} /></div>
                 </div>
               </div>
             </div>
@@ -1461,9 +1461,9 @@ const App: React.FC = () => {
     const ltvCacData = projections.map(p => ({
       month: p.month,
       monthName: p.monthName,
-      ltv: p.ltv,
       cac: p.cac,
-      ratio: p.cac > 0 ? p.ltv / p.cac : 0
+      ltv: p.ltv,
+      ratio: p.cac > 0 ? p.ltv / p.cac : 0,
     }));
     
     return (
@@ -1471,7 +1471,6 @@ const App: React.FC = () => {
         <h3 className="text-xs font-black uppercase text-yellow-400 tracking-[0.08em]">KPIs de Viabilidade</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="card-gradient hover-lift bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-slate-700/40 p-3 rounded-lg">
-            <div className="text-[7px] uppercase text-slate-500 font-bold tracking-[0.08em] mb-1">LTV (M36)</div>
             <div className="text-lg font-black text-green-400"><CurrencyDisplay value={last?.ltv} /></div>
             <div className="text-[9px] text-slate-400 mt-1">Lifetime Value</div>
           </div>
@@ -1483,15 +1482,13 @@ const App: React.FC = () => {
           <div className={`card-gradient hover-lift bg-gradient-to-br ${ratio >= 3 ? 'from-green-500/10 to-emerald-500/5' : 'from-orange-500/10 to-amber-500/5'} border border-slate-700/40 p-3 rounded-lg`}>
             <div className="text-[7px] uppercase text-slate-500 font-bold tracking-[0.08em] mb-1">LTV/CAC (M36)</div>
             <div className={`text-lg font-black ${ratio >= 3 ? 'text-green-400' : ratio >= 1 ? 'text-yellow-400' : 'text-red-400'}`}>{ratio.toFixed(2)}x</div>
-            <div className="text-[9px] text-slate-400 mt-1">Unit Economics</div>
           </div>
           <div className="card-gradient hover-lift bg-gradient-to-br from-blue-500/10 to-indigo-500/5 border border-slate-700/40 p-3 rounded-lg">
             <div className="text-[7px] uppercase text-slate-500 font-bold tracking-[0.08em] mb-1">CAGR (Ano 1-2)</div>
-            <div className="text-lg font-black text-blue-400">{(cagr * 100).toFixed(1)}%</div>
+            <div className="text-lg font-black text-blue-400"><PercentDisplay value={(cagr || 0) * 100} /></div>
             <div className="text-[9px] text-slate-400 mt-1">Crescimento Anual</div>
           </div>
         </div>
-        
         {/* Gráfico de Evolução LTV/CAC */}
         <div className="card-gradient border border-slate-700/40 rounded-xl p-4 bg-slate-900/50">
           <div className="text-[8px] uppercase text-slate-400 font-black mb-3 tracking-[0.08em]">Evolução de LTV, CAC e Ratio ao Longo de 36 Meses</div>

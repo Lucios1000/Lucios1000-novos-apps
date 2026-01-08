@@ -38,11 +38,54 @@ test('Eventos: Curva S, KPIs e exportação Excel', async ({ page, context }) =>
   await ranges.nth(1).evaluate((el: HTMLInputElement) => { el.value = '0.75'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
 
   // Validar período e base diária renderizados
-  await expect(page.getByText('Período selecionado:')).toBeVisible();
-  await expect(page.getByText('dia(s).', { exact: false })).toBeVisible();
+  const periodoInfo = await page.getByText('Período selecionado:', { exact: false }).innerText();
+  expect(periodoInfo).toContain('dia(s).');
+  const daysMatch = periodoInfo.match(/Período selecionado:\s*(\d+)/);
+  const baseDailyMatch = periodoInfo.match(/Base diária estimada:\s*([\d\.]+)/);
+  const days = daysMatch ? parseInt(daysMatch[1], 10) : 0;
+  const baseDaily = baseDailyMatch ? parseInt(baseDailyMatch[1].replace(/\./g, ''), 10) : 0;
+
+  // Cálculos esperados
+  const baseEventRides = Math.round(baseDaily * days);
+  const totalEventRides = Math.round(baseEventRides * (1 + 40 / 100));
+
+  // Validar corridas estimadas no período
+  await expect(page.getByTestId('event-total-rides')).toBeVisible();
+  const totalRidesText = await page.getByTestId('event-total-rides').innerText();
+  const totalRidesDisplayed = parseInt(totalRidesText.replace(/\D/g, ''), 10);
+  expect(totalRidesDisplayed).toBe(totalEventRides);
+
+  // Validar tarifa média com dinâmica
+  const brlToNumber = (s: string) => {
+    const cleaned = s.replace(/[^\d,\.]/g, '').replace(/\./g, '').replace(/,(\d{2})$/, '.$1');
+    return parseFloat(cleaned || '0');
+  };
+  await expect(page.getByTestId('event-avg-fare-base')).toBeVisible();
+  const baseFareText = await page.getByTestId('event-avg-fare-base').innerText();
+  const baseFare = brlToNumber(baseFareText);
+  const avgFareAdjCalc = baseFare * (1 + 25 / 100);
+  await expect(page.getByTestId('event-avg-fare-adj')).toBeVisible();
+  const avgFareAdjText = await page.getByTestId('event-avg-fare-adj').innerText();
+  const avgFareAdjDisplayed = brlToNumber(avgFareAdjText);
+  expect(Math.abs(avgFareAdjDisplayed - avgFareAdjCalc)).toBeLessThan(1);
+
+  // Validar GMV = totalEventRides * avgFareAdj
+  await expect(page.getByTestId('event-gmv')).toBeVisible();
+  const gmvText = await page.getByTestId('event-gmv').innerText();
+  const gmvDisplayed = brlToNumber(gmvText);
+  const gmvCalc = totalEventRides * avgFareAdjCalc;
+  expect(Math.abs(gmvDisplayed - gmvCalc)).toBeLessThan(1); // tolerância por arredondamento
 
   // Verificar que o gráfico e o label do pico aparecem
   await expect(page.getByText('Pico (Dia', { exact: false })).toBeVisible();
+
+  // Cobertura deve aumentar ao aumentar drivers necessários
+  const coverageText1 = await page.getByTestId('event-coverage').innerText();
+  const coverage1 = parseFloat(coverageText1.replace(/[^\d,\.]/g, '').replace(',', '.'));
+  await numberInputs.nth(2).fill('200'); // aumentar drivers
+  const coverageText2 = await page.getByTestId('event-coverage').innerText();
+  const coverage2 = parseFloat(coverageText2.replace(/[^\d,\.]/g, '').replace(',', '.'));
+  expect(coverage2 === coverage1 || coverage2 > coverage1).toBeTruthy();
 
   // Disparar exportação Excel e verificar download
   const [download] = await Promise.all([
