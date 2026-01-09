@@ -6,8 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="TKX Franca — Dashboard de Viabilidade Financeira: projeções, DRE, KPIs e análises de mercado (TAM/SAM/SOM) com integração IBGE." />
     <meta name="robots" content="index,follow" />
+    <meta name="color-scheme" content="dark light" />
     <link rel="canonical" href="https://lucios1000.github.io/Lucios1000-novos-apps/" />
     <meta name="theme-color" content="#0f172a" />
+    <!-- Open Graph / Twitter Cards -->
+    <meta property="og:title" content="TKX Franca — Dashboard de Viabilidade Financeira" />
+    <meta property="og:description" content="Projeções financeiras, DRE, KPIs e análises de mercado com IBGE (TAM/SAM/SOM)." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lucios1000.github.io/Lucios1000-novos-apps/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="TKX Franca — Dashboard de Viabilidade Financeira" />
+    <meta name="twitter:description" content="Projeções financeiras, DRE, KPIs e análises de mercado com IBGE." />
+    <!-- PWA/Manifest/Icon -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <!-- Perf: preconnect/dns-prefetch para APIs IBGE -->
+    <link rel="preconnect" href="https://servicodados.ibge.gov.br" />
+    <link rel="dns-prefetch" href="https://servicodados.ibge.gov.br" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <title>TKX FRANCA - Dashboard Financeiro</title>
@@ -101,6 +116,11 @@
     <!-- Importmap removido para evitar conflito com bundling do Vite -->
 </head>
   <body>
+    <noscript>
+      <div style="padding:12px;background:#0b1220;color:#f8fafc;border:1px solid #1e293b;margin:8px;border-radius:8px;font-family:system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif;">
+        Este aplicativo requer JavaScript habilitado para funcionar corretamente.
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/main.tsx"></script>
   </body>
