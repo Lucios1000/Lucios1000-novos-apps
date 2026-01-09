@@ -313,16 +313,15 @@ const StrategicInputsTab: React.FC<Props> = ({ scenario, currentParams, updateCu
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <div className="text-[10px] uppercase text-slate-400 font-bold">Tarifa Mínima (R$)</div>
-            <select
+            <input
+              type="number"
+              step={0.1}
               className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm"
               value={minFareActive}
               onChange={(e) => setMinFareActive(Number(e.target.value))}
+              placeholder="Ex.: 1.0"
               data-testid="sim-min-fare"
-            >
-              {[1.0, 1.1, 1.2, 1.3].map(v => (
-                <option key={v} value={v}>{formatCurrency(v)}</option>
-              ))}
-            </select>
+            />
 
             <div className="text-[10px] uppercase text-slate-400 font-bold mt-3">Tarifa Base (R$/km)</div>
             <input
