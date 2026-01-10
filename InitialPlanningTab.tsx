@@ -78,7 +78,7 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   };
 
   const setDynamicFactor = (val: number) => {
-    if (val < 1) return;
+    if (val < 0.5) return;
     setTariffSchedules(prev => prev.map(s => s.id === selectedScheduleId?{ ...s, dynamic: val } : s));
   };
   
@@ -555,7 +555,7 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Dinâmica (Multiplicador)</label>
                 <span className="text-xs font-mono text-yellow-400">{dynamicFactor.toFixed(1)}x</span>
               </div>
-              <input type="range" min={1} max={3} step={0.1} value={dynamicFactor} onChange={e => setDynamicFactor(Number(e.target.value))} className="w-full accent-yellow-500" />
+              <input type="range" min={0.5} max={3} step={0.1} value={dynamicFactor} onChange={e => setDynamicFactor(Number(e.target.value))} className="w-full accent-yellow-500" />
             </div>
 
             <div className="pt-4 border-t border-slate-800 mt-2">
