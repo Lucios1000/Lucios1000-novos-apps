@@ -4,7 +4,7 @@ import {
   DollarSign, Car, TrendingUp, MapPin, Users, Target, 
   Calculator, AlertTriangle, CheckCircle2, Building2,
   ShieldCheck, Save, FolderOpen, Trash2, RefreshCw, Clock, Info, Download,
-  ToggleLeft, ToggleRight
+  ToggleLeft, ToggleRight, Table as TableIcon, Database, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area
@@ -63,13 +63,12 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   
   // Configuração Técnica
   const [tariffSchedules, setTariffSchedules] = useState([
-    { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.4, basePrice: 10.00 },
-    { id: 'morning', label: 'Manhã (06h-11h)', start: 6, end: 11, dynamic: 1.0, basePrice: 10.00 },
-    { id: 'afternoon', label: 'Tarde (11h-17h)', start: 11, end: 17, dynamic: 0.9, basePrice: 10.00 },
-    { id: 'evening', label: 'Vespertina (17h-20h)', start: 17, end: 20, dynamic: 1.1, basePrice: 10.00 },
-    { id: 'night', label: 'Noite (20h-00h)', start: 20, end: 24, dynamic: 1.3, basePrice: 10.00 },
+    { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.2, basePrice: 10.00 },
+    { id: 'normal', label: 'Normal (06h-18h)', start: 6, end: 18, dynamic: 1.0, basePrice: 10.00 },
+    { id: 'peak', label: 'Pico (18h-21h)', start: 18, end: 21, dynamic: 1.1, basePrice: 10.00 },
+    { id: 'night', label: 'Noite (21h-00h)', start: 21, end: 24, dynamic: 1.2, basePrice: 10.00 },
   ]);
-  const [selectedScheduleId, setSelectedScheduleId] = useState('morning');
+  const [selectedScheduleId, setSelectedScheduleId] = useState('normal');
 
   const currentSchedule = tariffSchedules.find(s => s.id === selectedScheduleId) || tariffSchedules[1];
   const baseFare = currentSchedule.basePrice;
@@ -82,7 +81,7 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
 
   const setDynamicFactor = (val: number) => {
     if (val < 0.5) return;
-    setTariffSchedules(prev => prev.map(s => s.id === selectedScheduleId?{ ...s, dynamic: val } : s));
+    setTariffSchedules(prev => prev.map(s => s.id === selectedScheduleId ? { ...s, dynamic: val } : s));
   };
   
   const [costPerKm, setCostPerKm] = useState(2.43);
@@ -128,6 +127,75 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   // --- Gerenciamento de Presets ---
   const [presets, setPresets] = useState<any[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
+
+  // --- Simulação de Dados (SQL Mock) ---
+  const [mockRides, setMockRides] = useState<any[]>([]);
+  const [showOnlyLoss, setShowOnlyLoss] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const generateMockData = () => {
+    const rides = [];
+    for (let i = 1; i <= 50; i++) {
+      const hour = Math.floor(Math.random() * 24);
+      const schedule = tariffSchedules.find(s => hour >= s.start && hour < s.end) || tariffSchedules[0];
+      const dist = 2 + Math.random() * 10; // 2-12km
+      const time = dist * 2; 
+
+      const totalValue = calculateTechnicalTicket(
+        schedule.basePrice, costPerKm, dist, costPerMin, time, minFare, schedule.dynamic, includedKm
+      );
+
+      const gateway = enableGateway ? totalValue * (gatewayFeePct / 100) : 0;
+      const fixed = (enableInsurance ? insuranceFixed : 0) + (enableTech ? techFeeFixed : 0) + (enableLegal ? legalProvision : 0);
+      const takeRate = totalValue * 0.15;
+      const net = totalValue - gateway - fixed - takeRate;
+      const driverCosts = enableDriverCosts ? dist * (driverFuelCost + driverMaintenanceCost) : 0;
+      const realProfit = net - driverCosts;
+
+      rides.push({
+        id: i,
+        motorista_id: 1000 + i,
+        periodo: schedule.label,
+        hora: `${hour.toString().padStart(2, '0')}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`,
+        valor_total_pago: totalValue,
+        km_distancia: dist,
+        taxa_app_valor: takeRate,
+        custo_gateway: gateway,
+        custos_fixos_totais: fixed,
+        liquido_motorista: net,
+        lucro_real: realProfit
+      });
+    }
+    setMockRides(rides);
+    setCurrentPage(1);
+  };
+
+  const filteredRides = useMemo(() => {
+    return mockRides.filter(ride => !showOnlyLoss || ride.lucro_real < 0);
+  }, [mockRides, showOnlyLoss]);
+
+  const totalPages = Math.ceil(filteredRides.length / itemsPerPage);
+
+  const paginatedRides = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRides.slice(start, start + itemsPerPage);
+  }, [filteredRides, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showOnlyLoss]);
+
+  const simulationStats = useMemo(() => {
+    if (!mockRides.length) return null;
+    const total = mockRides.length;
+    const totalProfit = mockRides.reduce((acc, r) => acc + r.lucro_real, 0);
+    const avgProfit = totalProfit / total;
+    const lossCount = mockRides.filter(r => r.lucro_real < 0).length;
+    const lossPct = (lossCount / total) * 100;
+    
+    return { total, avgProfit, lossPct };
+  }, [mockRides]);
 
   // Carregar Estados do IBGE
   useEffect(() => {
@@ -268,11 +336,10 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
 
   const resetTariffs = () => {
     setTariffSchedules([
-      { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.4, basePrice: 10.00 },
-      { id: 'morning', label: 'Manhã (06h-11h)', start: 6, end: 11, dynamic: 1.0, basePrice: 10.00 },
-      { id: 'afternoon', label: 'Tarde (11h-17h)', start: 11, end: 17, dynamic: 0.9, basePrice: 10.00 },
-      { id: 'evening', label: 'Vespertina (17h-20h)', start: 17, end: 20, dynamic: 1.1, basePrice: 10.00 },
-      { id: 'night', label: 'Noite (20h-00h)', start: 20, end: 24, dynamic: 1.3, basePrice: 10.00 },
+      { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.2, basePrice: 10.00 },
+      { id: 'normal', label: 'Normal (06h-18h)', start: 6, end: 18, dynamic: 1.0, basePrice: 10.00 },
+      { id: 'peak', label: 'Pico (18h-21h)', start: 18, end: 21, dynamic: 1.1, basePrice: 10.00 },
+      { id: 'night', label: 'Noite (21h-00h)', start: 21, end: 24, dynamic: 1.2, basePrice: 10.00 },
     ]);
     setCostPerKm(2.43);
     setCostPerMin(0);
@@ -537,6 +604,34 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
             <button onClick={resetTariffs} className="text-[10px] uppercase font-bold text-red-400 hover:text-red-300 border border-red-900/50 hover:border-red-500/50 px-2 py-1 rounded transition-colors">
               Resetar
             </button>
+          </div>
+
+          {/* Tabela Visual de Horários (Grade) */}
+          <div className="mb-6 bg-slate-950/50 rounded-lg border border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 border-b border-slate-800">
+              <TableIcon className="w-3 h-3 text-slate-400" />
+              <span className="text-[10px] font-bold text-slate-300 uppercase">Grade de Horários (SQL: grade_horarios)</span>
+            </div>
+            <table className="w-full text-[10px] text-left text-slate-300">
+              <thead className="text-slate-500 bg-slate-900 uppercase">
+                <tr>
+                  <th className="px-3 py-1.5">Período</th>
+                  <th className="px-3 py-1.5 text-center">Horário</th>
+                  <th className="px-3 py-1.5 text-right">Mult.</th>
+                  <th className="px-3 py-1.5 text-right">Base</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {tariffSchedules.map(s => (
+                  <tr key={s.id} className={selectedScheduleId === s.id ? 'bg-yellow-500/10' : ''}>
+                    <td className="px-3 py-1.5 font-medium">{s.label.split('(')[0]}</td>
+                    <td className="px-3 py-1.5 text-center text-slate-400">{s.start}h - {s.end}h</td>
+                    <td className="px-3 py-1.5 text-right font-bold text-yellow-400">{s.dynamic.toFixed(1)}x</td>
+                    <td className="px-3 py-1.5 text-right text-slate-200">{formatCurrency(s.basePrice)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           <div className="space-y-4">
@@ -1068,6 +1163,134 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
             </div>
           </div>
         </div>
+      </div>
+
+      {/* SEÇÃO 4: SIMULAÇÃO DE DADOS (SQL PREVIEW) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+              <Database className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-100">Simulação de Histórico (SQL Preview)</h3>
+              <p className="text-xs text-slate-400">Geração de dados fictícios para a tabela <code>historico_corridas</code> baseada nos parâmetros acima.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowOnlyLoss(!showOnlyLoss)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors border ${showOnlyLoss ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}`}
+            >
+              <AlertTriangle className="w-3 h-3" /> Apenas Prejuízo
+            </button>
+            <button 
+              onClick={generateMockData}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" /> Gerar Dados Fictícios
+            </button>
+          </div>
+        </div>
+
+        {simulationStats && (
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Total de Corridas</div>
+              <div className="text-lg font-black text-white">{simulationStats.total}</div>
+            </div>
+            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Média de Lucro</div>
+              <div className={`text-lg font-black ${simulationStats.avgProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(simulationStats.avgProfit)}
+              </div>
+            </div>
+            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">% de Prejuízo</div>
+              <div className={`text-lg font-black ${simulationStats.lossPct > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {simulationStats.lossPct.toFixed(1)}%
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mockRides.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-slate-700/50">
+            <table className="w-full text-xs text-left text-slate-300">
+              <thead className="text-[10px] text-slate-400 uppercase bg-slate-800">
+                <tr>
+                  <th className="px-4 py-3">ID</th>
+                  <th className="px-4 py-3">Motorista ID</th>
+                  <th className="px-4 py-3">Período/Hora</th>
+                  <th className="px-4 py-3 text-right">Distância</th>
+                  <th className="px-4 py-3 text-right">Valor Total</th>
+                  <th className="px-4 py-3 text-right text-red-400">Taxa App (15%)</th>
+                  <th className="px-4 py-3 text-right text-red-400">Gateway</th>
+                  <th className="px-4 py-3 text-right text-red-400">Fixos</th>
+                  <th className="px-4 py-3 text-right font-bold text-green-400">Líquido Mot.</th>
+                  <th className="px-4 py-3 text-center">Status (Lucro Real)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {paginatedRides.map((ride) => (
+                  <tr key={ride.id} className="hover:bg-slate-800/30">
+                    <td className="px-4 py-2 font-mono text-slate-500">#{ride.id}</td>
+                    <td className="px-4 py-2 font-mono text-slate-400">{ride.motorista_id}</td>
+                    <td className="px-4 py-2">
+                      <div className="font-bold text-slate-200">{ride.periodo}</div>
+                      <div className="text-[10px] text-slate-500">{ride.hora}</div>
+                    </td>
+                    <td className="px-4 py-2 text-right">{ride.km_distancia.toFixed(1)} km</td>
+                    <td className="px-4 py-2 text-right font-bold text-white">{formatCurrency(ride.valor_total_pago)}</td>
+                    <td className="px-4 py-2 text-right text-red-300">{formatCurrency(ride.taxa_app_valor)}</td>
+                    <td className="px-4 py-2 text-right text-red-300">{formatCurrency(ride.custo_gateway)}</td>
+                    <td className="px-4 py-2 text-right text-red-300">{formatCurrency(ride.custos_fixos_totais)}</td>
+                    <td className="px-4 py-2 text-right font-black text-green-400 bg-green-900/10">{formatCurrency(ride.liquido_motorista)}</td>
+                    <td className="px-4 py-2 text-center">
+                      {ride.lucro_real > 0 ? (
+                        <span className="px-2 py-1 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold">Lucrativa</span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full bg-red-500/10 text-red-400 text-[10px] font-bold">Prejuízo</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredRides.length > itemsPerPage && (
+              <div className="flex items-center justify-between p-3 bg-slate-800/50 border-t border-slate-700/50">
+                <div className="text-[10px] text-slate-400">
+                  Mostrando <span className="font-bold text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-bold text-slate-200">{Math.min(currentPage * itemsPerPage, filteredRides.length)}</span> de <span className="font-bold text-slate-200">{filteredRides.length}</span> registros
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 transition-colors"
+                    title="Página Anterior"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    Página <span className="text-slate-200 font-bold">{currentPage}</span> de {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 transition-colors"
+                    title="Próxima Página"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-500 text-xs border border-dashed border-slate-800 rounded-lg">
+            Clique em "Gerar Dados Fictícios" para simular registros da tabela SQL.
+          </div>
+        )}
       </div>
     </div>
   );
