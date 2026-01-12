@@ -4,31 +4,33 @@ import { calculateTechnicalTicket } from './InitialPlanningTab';
 describe('Cálculo do Ticket Técnico (Unit Economics)', () => {
   // Cenário 1: Corrida padrão onde o custo técnico supera a tarifa mínima
   it('deve calcular o custo base corretamente (sem dinâmica)', () => {
-    const baseFare = 2.00;
-    const costPerKm = 2.00;
-    const avgDistance = 5; // 5km * 2.00 = 10.00
-    const costPerMin = 0.30;
-    const avgTime = 10; // 10min * 0.30 = 3.00
-    const minFare = 5.00;
+    const baseFare = 10.00; // Valor inicial (não usado diretamente na lógica de excedente, mas passado)
+    const costPerKm = 2.43;
+    const avgDistance = 5; 
+    const costPerMin = 0; // Ignorado
+    const avgTime = 10; 
+    const minFare = 11.50;
     const dynamic = 1.0;
+    const includedKm = 1.5;
 
-    // Cálculo esperado: 2.00 + 10.00 + 3.00 = 15.00
-    const result = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamic);
-    expect(result).toBe(15.00);
+    // Cálculo esperado: 10.00 (Base) + (5 - 1.5) * 2.43 = 10.00 + 3.5 * 2.43 = 10.00 + 8.505 = 18.505
+    const result = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamic, includedKm);
+    expect(result).toBeCloseTo(18.505, 3);
   });
 
   // Cenário 2: Corrida curta onde a tarifa mínima deve prevalecer
   it('deve aplicar a tarifa mínima quando o custo calculado for menor', () => {
-    const baseFare = 2.00;
-    const costPerKm = 2.00;
-    const avgDistance = 1; // 2.00
-    const costPerMin = 0.30;
-    const avgTime = 5; // 1.50
-    const minFare = 11.50; // Mínima alta
+    const baseFare = 10.00;
+    const costPerKm = 2.43;
+    const avgDistance = 1; // Menor que includedKm (1.5)
+    const costPerMin = 0;
+    const avgTime = 2;
+    const minFare = 11.50; 
     const dynamic = 1.0;
+    const includedKm = 1.5;
 
-    // Custo bruto: 2.00 + 2.00 + 1.50 = 5.50. Mínima é 11.50.
-    const result = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamic);
+    // Distância <= IncludedKm -> MinFare
+    const result = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamic, includedKm);
     expect(result).toBe(11.50);
   });
 
@@ -36,9 +38,26 @@ describe('Cálculo do Ticket Técnico (Unit Economics)', () => {
   it('deve multiplicar o resultado final pelo fator dinâmico', () => {
     // Usando os mesmos valores do Cenário 1 (Base 15.00)
     // Dinâmica de 1.4x
-    const result = calculateTechnicalTicket(2.00, 2.00, 5, 0.30, 10, 5.00, 1.4);
+    // Base calculation: 20.005
+    const result = calculateTechnicalTicket(10.00, 2.43, 5, 0, 10, 11.50, 1.4, 1.5);
     
-    // Esperado: 15.00 * 1.4 = 21.00
-    expect(result).toBeCloseTo(21.00, 2);
+    // Esperado: 20.005 * 1.4 = 28.007
+    expect(result).toBeCloseTo(28.007, 3);
+  });
+
+  // Cenário 4: Distância Zero (Robustez)
+  it('deve garantir que a tarifa mínima prevalece sobre o valor inicial (baseFare) quando a distância é zero', () => {
+    const baseFare = 10.00; 
+    const costPerKm = 2.43;
+    const avgDistance = 0; 
+    const costPerMin = 0;
+    const avgTime = 0;
+    const minFare = 11.50;
+    const dynamic = 1.0;
+    const includedKm = 1.5;
+
+    // Mesmo com distância 0, o custo deve ser a tarifa mínima (que cobre os primeiros 1.5km)
+    const result = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamic, includedKm);
+    expect(result).toBe(11.50);
   });
 });

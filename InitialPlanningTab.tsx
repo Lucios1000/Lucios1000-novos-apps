@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { SimulationParams } from '../types';
+import { SimulationParams } from './types';
 import { 
   DollarSign, Car, TrendingUp, MapPin, Users, Target, 
   Calculator, AlertTriangle, CheckCircle2, Building2,
-  ShieldCheck, Save, FolderOpen, Trash2, RefreshCw, Clock, Info, Download
+  ShieldCheck, Save, FolderOpen, Trash2, RefreshCw, Clock, Info, Download,
+  ToggleLeft, ToggleRight
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area
@@ -21,14 +22,6 @@ const DEMO_DATA: Record<string, { population: number, avgDist: number, avgTime: 
   'São Paulo': { population: 11451245, avgDist: 8.5, avgTime: 25 },
 };
 
-const COMPETITORS = [
-  { name: 'Uber', baseFare: 4.00, pricePerKm: 2.20, pricePerMin: 0.35 },
-  { name: '99', baseFare: 3.80, pricePerKm: 2.00, pricePerMin: 0.30 },
-  { name: 'Maxim', baseFare: 3.00, pricePerKm: 1.90, pricePerMin: 0.25 },
-  { name: 'Garupa', baseFare: 4.50, pricePerKm: 2.40, pricePerMin: 0.40 },
-  { name: 'Urban 66', baseFare: 3.50, pricePerKm: 2.10, pricePerMin: 0.30 },
-];
-
 const PRESETS_KEY = 'tkx_planning_presets';
 
 // Função pura exportada para testes unitários
@@ -39,10 +32,20 @@ export const calculateTechnicalTicket = (
   costPerMin: number,
   avgTime: number,
   minFare: number,
-  dynamicFactor: number
+  dynamicFactor: number,
+  includedKm: number = 0
 ) => {
-  const rawTechnicalCost = baseFare + (costPerKm * avgDistance) + (costPerMin * avgTime);
-  return Math.max(minFare, rawTechnicalCost) * dynamicFactor;
+  // Lógica atualizada conforme tabela:
+  // 1. Custo Base = Valor Inicial + (Km Excedente * Custo/Km)
+  // 2. Aplica Dinâmica
+  // 3. Resultado final é o maior valor entre (Custo Calculado) e (Tarifa Mínima)
+  
+  let cost = baseFare;
+  if (avgDistance > includedKm) {
+    cost += (avgDistance - includedKm) * costPerKm;
+  }
+  
+  return Math.max(minFare, cost * dynamicFactor);
 };
 
 export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentParams, updateCurrentParam }) => {
@@ -55,16 +58,16 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   const [popGrowthRate, setPopGrowthRate] = useState(1.2); // Taxa de crescimento anual (%)
   const [isLoadingPop, setIsLoadingPop] = useState(false);
   
-  const [samPercent, setSamPercent] = useState(55); // 40-60% sugestão
-  const [shareTarget, setShareTarget] = useState(15); // Market Share Alvo
+  const [samPercent, setSamPercent] = useState(50); // 40-60% sugestão
+  const [shareTarget, setShareTarget] = useState(15); // Market Share Alvo (Sempre iniciar em 15%)
   
   // Configuração Técnica
   const [tariffSchedules, setTariffSchedules] = useState([
-    { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.4, basePrice: 2.00 },
-    { id: 'morning', label: 'Manhã (06h-11h)', start: 6, end: 11, dynamic: 1.0, basePrice: 2.00 },
-    { id: 'afternoon', label: 'Tarde (11h-17h)', start: 11, end: 17, dynamic: 0.9, basePrice: 2.00 },
-    { id: 'evening', label: 'Vespertina (17h-20h)', start: 17, end: 20, dynamic: 1.1, basePrice: 2.00 },
-    { id: 'night', label: 'Noite (20h-00h)', start: 20, end: 24, dynamic: 1.3, basePrice: 2.00 },
+    { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.4, basePrice: 10.00 },
+    { id: 'morning', label: 'Manhã (06h-11h)', start: 6, end: 11, dynamic: 1.0, basePrice: 10.00 },
+    { id: 'afternoon', label: 'Tarde (11h-17h)', start: 11, end: 17, dynamic: 0.9, basePrice: 10.00 },
+    { id: 'evening', label: 'Vespertina (17h-20h)', start: 17, end: 20, dynamic: 1.1, basePrice: 10.00 },
+    { id: 'night', label: 'Noite (20h-00h)', start: 20, end: 24, dynamic: 1.3, basePrice: 10.00 },
   ]);
   const [selectedScheduleId, setSelectedScheduleId] = useState('morning');
 
@@ -82,9 +85,10 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
     setTariffSchedules(prev => prev.map(s => s.id === selectedScheduleId?{ ...s, dynamic: val } : s));
   };
   
-  const [costPerKm, setCostPerKm] = useState(2.00);
-  const [costPerMin, setCostPerMin] = useState(0.30);
-  const [minFare, setMinFare] = useState(5.00);
+  const [costPerKm, setCostPerKm] = useState(2.43);
+  const [costPerMin, setCostPerMin] = useState(0); // Substituído por valor inicial fixo na lógica
+  const [minFare, setMinFare] = useState(11.50);
+  const [includedKm, setIncludedKm] = useState(1.5);
   const [avgDistance, setAvgDistance] = useState(DEMO_DATA['Franca'].avgDist);
   const [avgTime, setAvgTime] = useState(DEMO_DATA['Franca'].avgTime);
   
@@ -94,6 +98,32 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   const [techFeeFixed, setTechFeeFixed] = useState(0.40);
   const [legalProvision, setLegalProvision] = useState(0.35);
   const [trafficContingencyPct, setTrafficContingencyPct] = useState(1.5);
+  
+  // Custos do Motorista (Novos parâmetros)
+  const [driverFuelCost, setDriverFuelCost] = useState(0.58);
+  const [driverMaintenanceCost, setDriverMaintenanceCost] = useState(0.59);
+
+  // Toggles de Despesas
+  const [enableGateway, setEnableGateway] = useState(true);
+  const [enableInsurance, setEnableInsurance] = useState(true);
+  const [enableTech, setEnableTech] = useState(true);
+  const [enableLegal, setEnableLegal] = useState(true);
+  const [enableDriverCosts, setEnableDriverCosts] = useState(true);
+
+  // Estado dos Concorrentes (Editável)
+  const [competitors, setCompetitors] = useState([
+    { name: 'Uber', baseFare: 4.00, pricePerKm: 2.20, pricePerMin: 0.35, minFare: 6.75 },
+    { name: '99', baseFare: 3.80, pricePerKm: 2.00, pricePerMin: 0.30, minFare: 5.90 },
+    { name: 'Maxim', baseFare: 3.00, pricePerKm: 1.90, pricePerMin: 0.25, minFare: 5.00 },
+    { name: 'Garupa', baseFare: 4.50, pricePerKm: 2.40, pricePerMin: 0.40, minFare: 7.00 },
+    { name: 'Urban 66', baseFare: 3.50, pricePerKm: 2.10, pricePerMin: 0.30, minFare: 5.50 },
+  ]);
+
+  const handleCompetitorChange = (index: number, field: string, value: number) => {
+    const updated = [...competitors];
+    (updated[index] as any)[field] = value;
+    setCompetitors(updated);
+  };
 
   // --- Gerenciamento de Presets ---
   const [presets, setPresets] = useState<any[]>([]);
@@ -131,6 +161,11 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
       setAvgTime(demo.avgTime);
     }
   }, [selectedCity]);
+
+  // Cálculo automático do tempo estimado (2 min por km)
+  useEffect(() => {
+    setAvgTime(Math.round(avgDistance * 2));
+  }, [avgDistance]);
 
   // Buscar população via API IBGE
   const fetchPopulationData = async () => {
@@ -175,7 +210,7 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
       date: Date.now(),
       data: {
         selectedCity, selectedUf, population, popGrowthRate, samPercent, shareTarget, tariffSchedules,
-        costPerKm, costPerMin, minFare, avgDistance, avgTime,
+        costPerKm, costPerMin, minFare, avgDistance, avgTime, includedKm,
         gatewayFeePct, insuranceFixed, techFeeFixed, legalProvision, trafficContingencyPct,
         avgFare: currentParams.avgFare
       }
@@ -208,6 +243,7 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
     setCostPerKm(d.costPerKm || 2.00);
     setCostPerMin(d.costPerMin || 0.30);
     setMinFare(d.minFare || 5.00);
+    setIncludedKm(d.includedKm || 1.5);
     setAvgDistance(d.avgDistance || 5.2);
     setAvgTime(d.avgTime || 12);
     setGatewayFeePct(d.gatewayFeePct || 2.5);
@@ -215,6 +251,8 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
     setTechFeeFixed(d.techFeeFixed || 0.40);
     setLegalProvision(d.legalProvision || 0.35);
     setTrafficContingencyPct(d.trafficContingencyPct || 1.5);
+    setDriverFuelCost(d.driverFuelCost || 0.58);
+    setDriverMaintenanceCost(d.driverMaintenanceCost || 0.59);
     
     if (d.avgFare) updateCurrentParam('avgFare', d.avgFare);
     setSelectedPresetId(id);
@@ -230,27 +268,23 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
 
   const resetTariffs = () => {
     setTariffSchedules([
-      { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.4, basePrice: 2.00 },
-      { id: 'morning', label: 'Manhã (06h-11h)', start: 6, end: 11, dynamic: 1.0, basePrice: 2.00 },
-      { id: 'afternoon', label: 'Tarde (11h-17h)', start: 11, end: 17, dynamic: 0.9, basePrice: 2.00 },
-      { id: 'evening', label: 'Vespertina (17h-20h)', start: 17, end: 20, dynamic: 1.1, basePrice: 2.00 },
-      { id: 'night', label: 'Noite (20h-00h)', start: 20, end: 24, dynamic: 1.3, basePrice: 2.00 },
+      { id: 'dawn', label: 'Madrugada (00h-06h)', start: 0, end: 6, dynamic: 1.4, basePrice: 10.00 },
+      { id: 'morning', label: 'Manhã (06h-11h)', start: 6, end: 11, dynamic: 1.0, basePrice: 10.00 },
+      { id: 'afternoon', label: 'Tarde (11h-17h)', start: 11, end: 17, dynamic: 0.9, basePrice: 10.00 },
+      { id: 'evening', label: 'Vespertina (17h-20h)', start: 17, end: 20, dynamic: 1.1, basePrice: 10.00 },
+      { id: 'night', label: 'Noite (20h-00h)', start: 20, end: 24, dynamic: 1.3, basePrice: 10.00 },
     ]);
-    setCostPerKm(2.00);
-    setCostPerMin(0.30);
+    setCostPerKm(2.43);
+    setCostPerMin(0);
+    setIncludedKm(1.5);
     setMinFare(11.50);
   };
 
   const exportCompetitorsCSV = () => {
     const headers = ['Player', 'Tarifa Estimada', 'Diferenca %'];
-    const rows = COMPETITORS.map(c => {
-      let estValue = 0;
-      if (avgDistance <= 2) {
-        estValue = 12.90;
-      } else {
-        const raw = c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime);
-        estValue = Math.max(12.90, raw);
-      }
+    const rows = competitors.map(c => {
+      // Cálculo direto: Max(Mínima, Base + (Km * Dist) + (Min * Tempo))
+      const estValue = Math.max(c.minFare, c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime));
       const diff = practicedTicket > 0 ? ((estValue - practicedTicket) / practicedTicket) * 100 : 0;
       return [
         c.name, 
@@ -277,32 +311,31 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   const sam = Math.round(tam * (samPercent / 100));
   const som = Math.round(sam * (shareTarget / 100));
 
-  const technicalTicket = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamicFactor);
+  const technicalTicket = calculateTechnicalTicket(baseFare, costPerKm, avgDistance, costPerMin, avgTime, minFare, dynamicFactor, includedKm);
   const practicedTicket = currentParams.avgFare;
   const priceDelta = practicedTicket - technicalTicket;
   const isUnderPriced = priceDelta < 0;
 
   // Unit Economics
   const gmv = practicedTicket;
-  const gatewayCost = gmv * (gatewayFeePct / 100);
+  const gatewayCost = enableGateway ? gmv * (gatewayFeePct / 100) : 0;
   const takeRateGross = gmv * 0.15;
   const trafficReserve = takeRateGross * (trafficContingencyPct / 100);
-  const operationalMargin = gmv - gatewayCost - insuranceFixed - techFeeFixed - legalProvision;
+  
+  const insuranceCost = enableInsurance ? insuranceFixed : 0;
+  const techCost = enableTech ? techFeeFixed : 0;
+  const legalCost = enableLegal ? legalProvision : 0;
+  const operationalMargin = gmv - gatewayCost - insuranceCost - techCost - legalCost;
   const driverEarnings = operationalMargin - takeRateGross; 
+  const driverExpenses = enableDriverCosts ? avgDistance * (driverFuelCost + driverMaintenanceCost) : 0;
+  const driverNetProfit = driverEarnings - driverExpenses;
 
   const comparisonData = [
     { name: 'Custo Técnico', value: technicalTicket, fill: '#94a3b8' },
     { name: 'TKX (Praticado)', value: practicedTicket, fill: isUnderPriced ? '#ef4444' : '#22c55e' },
-    ...COMPETITORS.map(c => {
-      // Lógica de precificação dinâmica da concorrência
-      // Trava: até 2km = R$ 12,90. Acima disso, fórmula padrão (respeitando mínimo de 12,90)
-      let estimatedValue = 0;
-      if (avgDistance <= 2) {
-        estimatedValue = 12.90;
-      } else {
-        const raw = c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime);
-        estimatedValue = Math.max(12.90, raw);
-      }
+    ...competitors.map(c => {
+      // Cálculo direto com tarifa mínima
+      const estimatedValue = Math.max(c.minFare, c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime));
       return { name: c.name, value: estimatedValue, fill: '#f59e0b' };
     })
   ];
@@ -311,10 +344,10 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   const hourlyData = useMemo(() => {
     return Array.from({ length: 24 }, (_, h) => {
       const s = tariffSchedules.find(ts => h >= ts.start && h < ts.end) || tariffSchedules[0];
-      const cost = (s.basePrice + (costPerKm * avgDistance) + (costPerMin * avgTime)) * s.dynamic;
-      return { hour: h, price: cost, label: s.label };
+      const cost = calculateTechnicalTicket(s.basePrice, costPerKm, avgDistance, costPerMin, avgTime, minFare, s.dynamic, includedKm);
+      return { hour: h, price: cost, label: s.label, basePrice: s.basePrice };
     });
-  }, [tariffSchedules, costPerKm, avgDistance, costPerMin, avgTime]);
+  }, [tariffSchedules, costPerKm, avgDistance, costPerMin, avgTime, minFare, includedKm]);
 
   // Cálculo do Custo Técnico Médio
   const avgTechnicalCost = useMemo(() => {
@@ -322,6 +355,30 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
     const total = hourlyData.reduce((acc, curr) => acc + curr.price, 0);
     return total / hourlyData.length;
   }, [hourlyData]);
+
+  // Calculadora detalhada (baseada na lógica Python fornecida)
+  const detailedCalculator = useMemo(() => {
+    const kmAdicionais = Math.max(0, avgDistance - includedKm);
+    const valorAdicional = kmAdicionais * costPerKm;
+    const valorBrutoTeorico = baseFare + valorAdicional;
+    
+    // Aplica dinâmica conforme lógica do ticket técnico
+    const valorComDinamica = valorBrutoTeorico * dynamicFactor;
+    const valorBruto = Math.max(valorComDinamica, minFare);
+
+    const taxaPlataformaPercent = 15;
+    const taxaPlataforma = valorBruto * (taxaPlataformaPercent / 100);
+    const valorLiquido = valorBruto - taxaPlataforma;
+
+    const custoKm = enableDriverCosts ? (driverFuelCost + driverMaintenanceCost) : 0;
+    const despesasTotais = avgDistance * custoKm;
+
+    const lucroLiquido = valorLiquido - despesasTotais;
+
+    return {
+        kmAdicionais, valorAdicional, valorBruto, taxaPlataforma, valorLiquido, despesasTotais, lucroLiquido
+    };
+  }, [avgDistance, includedKm, costPerKm, baseFare, minFare, dynamicFactor, driverFuelCost, driverMaintenanceCost, enableDriverCosts]);
 
   const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatNumber = (val: number) => val.toLocaleString('pt-BR');
@@ -485,7 +542,7 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Tarifas</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Tarifas / Valor Inicial</label>
                 <div className="flex gap-2">
                   <select 
                     value={selectedScheduleId}
@@ -529,8 +586,8 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                 <input type="number" step="0.10" min="0" value={costPerKm} onChange={e => setCostPerKm(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Custo / Min</label>
-                <input type="number" step="0.05" min="0" value={costPerMin} onChange={e => setCostPerMin(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white" />
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Km Incluído na Mínima</label>
+                <input type="number" step="0.1" min="0" value={includedKm} onChange={e => setIncludedKm(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white" />
               </div>
             </div>
 
@@ -544,10 +601,10 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Tempo Estimado</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Tempo Estimado (2 min/km)</label>
                 <span className="text-xs font-mono text-slate-200">{avgTime} min</span>
               </div>
-              <input type="range" min={1} max={60} step={1} value={avgTime} onChange={e => setAvgTime(Number(e.target.value))} className="w-full accent-slate-500" />
+              <input type="range" min={1} max={60} step={1} value={avgTime} disabled className="w-full accent-slate-700 opacity-50 cursor-not-allowed" />
             </div>
 
             <div>
@@ -570,14 +627,8 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {COMPETITORS.map((c) => {
-                  let estValue = 0;
-                  if (avgDistance <= 2) {
-                    estValue = 12.90;
-                  } else {
-                    const raw = c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime);
-                    estValue = Math.max(12.90, raw);
-                  }
+                {competitors.map((c) => {
+                  const estValue = Math.max(c.minFare, c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime));
                   const diff = practicedTicket > 0 ? ((estValue - practicedTicket) / practicedTicket) * 100 : 0;
                   return (
                   <div key={c.name} className="flex justify-between items-center bg-slate-800/50 px-2 py-1 rounded border border-slate-700/30">
@@ -592,6 +643,55 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                 <div className="flex justify-between items-center bg-slate-800/50 px-2 py-1 rounded border border-yellow-500/30">
                    <span className="text-[10px] text-yellow-400">TKX Franca</span>
                    <span className="text-[10px] font-bold text-yellow-400">{formatCurrency(practicedTicket)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Nova Calculadora Detalhada */}
+            <div className="mt-6 pt-6 border-t border-slate-800">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-3">Detalhamento do Cálculo (Motorista)</h4>
+              <div className="bg-slate-950/50 rounded p-3 border border-slate-800 space-y-2">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-400">Distância Total</span>
+                  <span className="text-slate-300">{avgDistance} km</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-400">(-) Km Incluídos</span>
+                  <span className="text-slate-300">{includedKm} km</span>
+                </div>
+                <div className="flex justify-between text-[10px] border-b border-slate-800 pb-1">
+                  <span className="text-slate-400">(=) Km Adicionais</span>
+                  <span className="text-slate-200 font-bold">{detailedCalculator.kmAdicionais.toFixed(1)} km</span>
+                </div>
+                
+                <div className="flex justify-between text-[10px] pt-1">
+                  <span className="text-slate-400">Valor Inicial</span>
+                  <span className="text-slate-300">{formatCurrency(baseFare)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-400">(+) Valor Adicional</span>
+                  <span className="text-slate-300">{formatCurrency(detailedCalculator.valorAdicional)}</span>
+                </div>
+                <div className="flex justify-between text-[10px] border-b border-slate-800 pb-1">
+                  <span className="text-slate-100 font-bold">(=) Valor Bruto</span>
+                  <span className="text-slate-100 font-bold">{formatCurrency(detailedCalculator.valorBruto)}</span>
+                </div>
+
+                <div className="flex justify-between text-[10px] pt-1">
+                  <span className="text-red-400">(-) Taxa Plataforma (15%)</span>
+                  <span className="text-red-400">{formatCurrency(detailedCalculator.taxaPlataforma)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-blue-300">(=) Valor Líquido</span>
+                  <span className="text-blue-300 font-bold">{formatCurrency(detailedCalculator.valorLiquido)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-red-400">(-) Despesas (Comb.+Manut.)</span>
+                  <span className="text-red-400">{formatCurrency(detailedCalculator.despesasTotais)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-black pt-2 border-t border-slate-700">
+                  <span className="text-emerald-400">(=) Lucro Líquido</span>
+                  <span className="text-emerald-400">{formatCurrency(detailedCalculator.lucroLiquido)}</span>
                 </div>
               </div>
             </div>
@@ -650,9 +750,9 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-950 border border-slate-700 rounded-lg shadow-xl text-[10px] text-slate-300 hidden group-hover:block z-50 pointer-events-none">
                     <div className="font-bold text-yellow-400 mb-1">Fórmula do Ticket Técnico</div>
                     <div className="space-y-1">
-                      <p>1. Soma: Base + (Km × Distância) + (Min × Tempo)</p>
-                      <p>2. Compara com a <strong>Tarifa Mínima</strong> (prevalece o maior).</p>
-                      <p>3. Multiplica pelo fator <strong>Dinâmico</strong> do horário.</p>
+                      <p>1. Se Distância ≤ Km Incluído: <strong>Tarifa Mínima</strong></p>
+                      <p>2. Se Distância &gt; Km Incluído: Mínima + (Distância Excedente × Custo/Km)</p>
+                      <p>3. Aplica fator <strong>Dinâmico</strong>.</p>
                     </div>
                   </div>
                 </div>
@@ -672,6 +772,55 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                   onChange={(e) => updateCurrentParam('avgFare', Number(e.target.value))}
                   className="w-full accent-yellow-500 h-1"
                 />
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-slate-800">
+              <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Comparativo de Parâmetros (Unitários)</h4>
+              <div className="overflow-x-auto rounded-lg border border-slate-700/50">
+                <table className="w-full text-xs text-left text-slate-300">
+                  <thead className="text-[10px] text-slate-400 uppercase bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Player</th>
+                      <th className="px-4 py-3 text-right font-bold">Base (R$)</th>
+                      <th className="px-4 py-3 text-right font-bold">Km (R$)</th>
+                      <th className="px-4 py-3 text-right font-bold">Min (R$)</th>
+                      <th className="px-4 py-3 text-right font-bold">Mínima (R$)</th>
+                      <th className="px-4 py-3 text-right font-bold">Tarifa Est. ({avgDistance}km)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {competitors.map((c, idx) => {
+                      const estValue = Math.max(c.minFare, c.baseFare + (c.pricePerKm * avgDistance) + (c.pricePerMin * avgTime));
+                      return (
+                        <tr key={c.name} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-2 font-medium text-slate-200">{c.name}</td>
+                          <td className="px-4 py-2 text-right">
+                            <input type="number" step="0.10" value={c.baseFare} onChange={(e) => handleCompetitorChange(idx, 'baseFare', Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded px-1 text-right text-xs text-slate-300 focus:border-yellow-500 outline-none" />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input type="number" step="0.10" value={c.pricePerKm} onChange={(e) => handleCompetitorChange(idx, 'pricePerKm', Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded px-1 text-right text-xs text-slate-300 focus:border-yellow-500 outline-none" />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input type="number" step="0.05" value={c.pricePerMin} onChange={(e) => handleCompetitorChange(idx, 'pricePerMin', Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded px-1 text-right text-xs text-slate-300 focus:border-yellow-500 outline-none" />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input type="number" step="0.10" value={c.minFare} onChange={(e) => handleCompetitorChange(idx, 'minFare', Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded px-1 text-right text-xs text-slate-300 focus:border-yellow-500 outline-none" />
+                          </td>
+                          <td className="px-4 py-2 text-right font-bold text-slate-100">{formatCurrency(estValue)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-yellow-500/10">
+                      <td className="px-4 py-2 font-bold text-yellow-400">TKX Franca (Técnico)</td>
+                      <td className="px-4 py-2 text-right text-yellow-400">{formatCurrency(baseFare)}</td>
+                      <td className="px-4 py-2 text-right text-yellow-400">{formatCurrency(costPerKm)}</td>
+                      <td className="px-4 py-2 text-right text-yellow-400">{formatCurrency(costPerMin)}</td>
+                      <td className="px-4 py-2 text-right text-yellow-400">{formatCurrency(minFare)}</td>
+                      <td className="px-4 py-2 text-right font-black text-yellow-400">{formatCurrency(technicalTicket)}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -750,24 +899,52 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                   <td className="px-4 py-2 text-right text-slate-500">100%</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-2 pl-6 text-red-300">(-) Taxa Checkout (Gateway {gatewayFeePct}%)</td>
+                  <td className="px-4 py-2 pl-6 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEnableGateway(!enableGateway)} className={enableGateway ? "text-green-400" : "text-slate-600"}>
+                        {enableGateway ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      </button>
+                      <span className={!enableGateway ? "line-through opacity-50" : ""}>(-) Taxa Checkout (Gateway {gatewayFeePct}%)</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-2 text-right text-red-300">{formatCurrency(gatewayCost)}</td>
                   <td className="px-4 py-2 text-right text-slate-600">{(gatewayCost/gmv*100).toFixed(1)}%</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-2 pl-6 text-red-300">(-) Seguro de Vida (APP)</td>
-                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(insuranceFixed)}</td>
-                  <td className="px-4 py-2 text-right text-slate-600">{(insuranceFixed/gmv*100).toFixed(1)}%</td>
+                  <td className="px-4 py-2 pl-6 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEnableInsurance(!enableInsurance)} className={enableInsurance ? "text-green-400" : "text-slate-600"}>
+                        {enableInsurance ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      </button>
+                      <span className={!enableInsurance ? "line-through opacity-50" : ""}>(-) Seguro de Vida (APP)</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(insuranceCost)}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{(insuranceCost/gmv*100).toFixed(1)}%</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-2 pl-6 text-red-300">(-) Taxa Tech/Manutenção</td>
-                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(techFeeFixed)}</td>
-                  <td className="px-4 py-2 text-right text-slate-600">{(techFeeFixed/gmv*100).toFixed(1)}%</td>
+                  <td className="px-4 py-2 pl-6 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEnableTech(!enableTech)} className={enableTech ? "text-green-400" : "text-slate-600"}>
+                        {enableTech ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      </button>
+                      <span className={!enableTech ? "line-through opacity-50" : ""}>(-) Taxa Tech/Manutenção</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(techCost)}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{(techCost/gmv*100).toFixed(1)}%</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-2 pl-6 text-red-300">(-) Provisão Lei 2026</td>
-                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(legalProvision)}</td>
-                  <td className="px-4 py-2 text-right text-slate-600">{(legalProvision/gmv*100).toFixed(1)}%</td>
+                  <td className="px-4 py-2 pl-6 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEnableLegal(!enableLegal)} className={enableLegal ? "text-green-400" : "text-slate-600"}>
+                        {enableLegal ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      </button>
+                      <span className={!enableLegal ? "line-through opacity-50" : ""}>(-) Provisão Lei 2026</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(legalCost)}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{(legalCost/gmv*100).toFixed(1)}%</td>
                 </tr>
                 <tr className="bg-slate-800/50 font-semibold">
                   <td className="px-4 py-2 text-blue-300">(=) Margem Operacional Disponível</td>
@@ -783,6 +960,23 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
                   <td className="px-4 py-3 font-black text-green-400">(=) Repasse ao Parceiro (Líquido)</td>
                   <td className="px-4 py-3 text-right font-black text-green-400 text-lg">{formatCurrency(driverEarnings)}</td>
                   <td className="px-4 py-3 text-right text-green-600 font-bold">{(driverEarnings/gmv*100).toFixed(1)}%</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2 pl-6 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEnableDriverCosts(!enableDriverCosts)} className={enableDriverCosts ? "text-green-400" : "text-slate-600"}>
+                        {enableDriverCosts ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      </button>
+                      <span className={!enableDriverCosts ? "line-through opacity-50" : ""}>(-) Custos Operacionais Motorista (Combustível/Manutenção)</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right text-red-300">{formatCurrency(driverExpenses)}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{(driverExpenses/gmv*100).toFixed(1)}%</td>
+                </tr>
+                <tr className="bg-emerald-900/30 border-t border-emerald-500/50">
+                  <td className="px-4 py-3 font-black text-emerald-400">(=) Lucro Líquido Motorista</td>
+                  <td className="px-4 py-3 text-right font-black text-emerald-400 text-xl">{formatCurrency(driverNetProfit)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-500 font-bold">{(driverNetProfit/gmv*100).toFixed(1)}%</td>
                 </tr>
               </tbody>
             </table>
@@ -814,23 +1008,61 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
             </div>
 
             <div className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-xl">
-              <h4 className="text-xs font-bold text-slate-300 uppercase mb-3">Ajuste Fino de Custos Fixos</h4>
+              <h4 className="text-xs font-bold text-slate-300 uppercase mb-3">Custos Fixos & Motorista</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[9px] text-slate-500 uppercase font-bold">Gateway (%)</label>
-                  <input type="number" step="0.1" value={gatewayFeePct} onChange={e => setGatewayFeePct(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white" />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[9px] text-slate-500 uppercase font-bold">Gateway (%)</label>
+                    <button onClick={() => setEnableGateway(!enableGateway)} className={enableGateway ? "text-green-400" : "text-slate-600"} title={enableGateway ? "Desativar" : "Ativar"}>
+                      {enableGateway ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                  </div>
+                  <input type="number" step="0.1" value={gatewayFeePct} onChange={e => setGatewayFeePct(Number(e.target.value))} className={`w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white ${!enableGateway ? 'opacity-50' : ''}`} disabled={!enableGateway} />
                 </div>
                 <div>
-                  <label className="text-[9px] text-slate-500 uppercase font-bold">Seguro (R$)</label>
-                  <input type="number" step="0.05" value={insuranceFixed} onChange={e => setInsuranceFixed(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white" />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[9px] text-slate-500 uppercase font-bold">Seguro (R$)</label>
+                    <button onClick={() => setEnableInsurance(!enableInsurance)} className={enableInsurance ? "text-green-400" : "text-slate-600"} title={enableInsurance ? "Desativar" : "Ativar"}>
+                      {enableInsurance ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                  </div>
+                  <input type="number" step="0.05" value={insuranceFixed} onChange={e => setInsuranceFixed(Number(e.target.value))} className={`w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white ${!enableInsurance ? 'opacity-50' : ''}`} disabled={!enableInsurance} />
                 </div>
                 <div>
-                  <label className="text-[9px] text-slate-500 uppercase font-bold">Taxa Tech (R$)</label>
-                  <input type="number" step="0.05" value={techFeeFixed} onChange={e => setTechFeeFixed(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white" />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[9px] text-slate-500 uppercase font-bold">Taxa Tech (R$)</label>
+                    <button onClick={() => setEnableTech(!enableTech)} className={enableTech ? "text-green-400" : "text-slate-600"} title={enableTech ? "Desativar" : "Ativar"}>
+                      {enableTech ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                  </div>
+                  <input type="number" step="0.05" value={techFeeFixed} onChange={e => setTechFeeFixed(Number(e.target.value))} className={`w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white ${!enableTech ? 'opacity-50' : ''}`} disabled={!enableTech} />
                 </div>
                 <div>
-                  <label className="text-[9px] text-slate-500 uppercase font-bold">Lei 2026 (R$)</label>
-                  <input type="number" step="0.05" value={legalProvision} onChange={e => setLegalProvision(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white" />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[9px] text-slate-500 uppercase font-bold">Lei 2026 (R$)</label>
+                    <button onClick={() => setEnableLegal(!enableLegal)} className={enableLegal ? "text-green-400" : "text-slate-600"} title={enableLegal ? "Desativar" : "Ativar"}>
+                      {enableLegal ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                  </div>
+                  <input type="number" step="0.05" value={legalProvision} onChange={e => setLegalProvision(Number(e.target.value))} className={`w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white ${!enableLegal ? 'opacity-50' : ''}`} disabled={!enableLegal} />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[9px] text-slate-500 uppercase font-bold">Combustível/Km (R$)</label>
+                    <button onClick={() => setEnableDriverCosts(!enableDriverCosts)} className={enableDriverCosts ? "text-green-400" : "text-slate-600"} title={enableDriverCosts ? "Desativar" : "Ativar"}>
+                      {enableDriverCosts ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                  </div>
+                  <input type="number" step="0.01" value={driverFuelCost} onChange={e => setDriverFuelCost(Number(e.target.value))} className={`w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white ${!enableDriverCosts ? 'opacity-50' : ''}`} disabled={!enableDriverCosts} />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[9px] text-slate-500 uppercase font-bold">Veículo/Km (R$)</label>
+                    <button onClick={() => setEnableDriverCosts(!enableDriverCosts)} className={enableDriverCosts ? "text-green-400" : "text-slate-600"} title={enableDriverCosts ? "Desativar" : "Ativar"}>
+                      {enableDriverCosts ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                  </div>
+                  <input type="number" step="0.01" value={driverMaintenanceCost} onChange={e => setDriverMaintenanceCost(Number(e.target.value))} className={`w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white ${!enableDriverCosts ? 'opacity-50' : ''}`} disabled={!enableDriverCosts} />
                 </div>
               </div>
             </div>
