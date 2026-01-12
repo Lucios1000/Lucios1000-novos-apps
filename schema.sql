@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS historico_corridas (
 
 -- Inserindo os multiplicadores base
 INSERT INTO grade_horarios (periodo, hora_inicio, hora_fim, multiplicador) VALUES 
-('Normal', '06:00', '18:00', 1.0),
-('Pico', '18:00', '21:00', 1.1),
-('Madrugada', '00:00', '05:59', 1.2);
+('Madrugada', '00:00', '05:59', 1.2),
+('Normal', '06:00', '17:59', 1.0),
+('Pico', '18:00', '20:59', 1.1),
+('Noite', '21:00', '23:59', 1.2);
