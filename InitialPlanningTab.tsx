@@ -4,7 +4,7 @@ import {
   DollarSign, Car, TrendingUp, MapPin, Users, Target, 
   Calculator, AlertTriangle, CheckCircle2, Building2,
   ShieldCheck, Save, FolderOpen, Trash2, RefreshCw, Clock, Info, Download,
-  ToggleLeft, ToggleRight, Table as TableIcon, Database, ChevronLeft, ChevronRight
+  ToggleLeft, ToggleRight, Table as TableIcon, Database, ChevronLeft, ChevronRight, FileCode
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area
@@ -133,6 +133,55 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   const [showOnlyLoss, setShowOnlyLoss] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const downloadSqlSchema = () => {
+    const sqlContent = `-- 1. Tabela de Motoristas
+CREATE TABLE IF NOT EXISTS motoristas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    status TEXT DEFAULT 'ativo',
+    taxa_adesao_paga BOOLEAN DEFAULT 0,
+    saldo_a_receber REAL DEFAULT 0.00
+);
+
+-- 2. Tabela de Horários e Multiplicadores (Para automação das Tabelas 1.0 a 1.3)
+CREATE TABLE IF NOT EXISTS grade_horarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    periodo TEXT, -- Ex: Madrugada, Pico, Normal
+    hora_inicio TIME,
+    hora_fim TIME,
+    multiplicador REAL -- Ex: 1.20
+);
+
+-- 3. Tabela Principal de Corridas (Onde o DRE nasce)
+CREATE TABLE IF NOT EXISTS historico_corridas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    motorista_id INTEGER,
+    valor_total_pago REAL, -- Valor do Slider
+    km_distancia REAL,
+    taxa_app_valor REAL, -- Os 15% calculados na hora
+    custo_gateway REAL, -- Os 2.5% 
+    custos_fixos_totais REAL, -- Soma do Seguro + Manutencao + Provisao 
+    liquido_motorista REAL,
+    data_corrida DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (motorista_id) REFERENCES motoristas(id)
+);
+
+-- Inserindo os multiplicadores base
+INSERT INTO grade_horarios (periodo, hora_inicio, hora_fim, multiplicador) VALUES 
+('Normal', '06:00', '18:00', 1.0),
+('Pico', '18:00', '21:00', 1.1),
+('Madrugada', '00:00', '05:59', 1.2);`;
+
+    const blob = new Blob([sqlContent], { type: 'application/sql' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'schema_tkx.sql';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const generateMockData = () => {
     const rides = [];
@@ -1178,6 +1227,12 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
             </div>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={downloadSqlSchema}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors border bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            >
+              <FileCode className="w-3 h-3" /> Baixar Schema SQL
+            </button>
             <button
               onClick={() => setShowOnlyLoss(!showOnlyLoss)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors border ${showOnlyLoss ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}`}
