@@ -1,4 +1,3 @@
-
 import sqlite3
 
 def exibir_resumo_mensal():
@@ -6,7 +5,7 @@ def exibir_resumo_mensal():
         conn = sqlite3.connect('tkx_franca.db')
         cursor = conn.cursor()
 
-        # Query para consolidar os dados do DRE
+        # Sua Query original (está perfeita!)
         query = """
         SELECT 
             COUNT(id) as total_viagens,
@@ -24,19 +23,26 @@ def exibir_resumo_mensal():
         print("      SISTEMA DE GESTÃO TKX     ")
         print("================================")
 
-        if not dados or dados[0] == 0:
+        # O segredo está aqui: se o banco retornar vazio, usamos 0 ou 0.0
+        total = dados[0] if dados[0] else 0
+        bruto = dados[1] if dados[1] else 0.0
+        comissao = dados[2] if dados[2] else 0.0
+        gate = dados[3] if dados[3] else 0.0
+        oper = dados[4] if dados[4] else 0.0
+
+        if total == 0:
             print("Status: Banco conectado.")
-            print("Aviso: Nenhuma corrida registrada ainda.")
+            print("Aviso: Nenhuma corrida registrada ainda no sistema.")
         else:
-            total, bruto, comissao, gate, oper = dados
-            lucro_liquido = (comissao or 0) - (gate or 0) - (oper or 0)
+            # Cálculo do Lucro Líquido Real (Sua lógica de DRE)
+            lucro_liquido = comissao - gate - oper
             
             print(f"Total de Corridas: {total}")
-            print(f"Faturamento Bruto: R$ {bruto or 0:.2f}")
-            print(f"Sua Comissão (15%): R$ {comissao or 0:.2f}")
+            print(f"Faturamento Bruto: R$ {bruto:.2f}")
+            print(f"Sua Comissão (15%): R$ {comissao:.2f}")
             print(f"--------------------------------")
-            print(f"(-) Custo Gateway: R$ {gate or 0:.2f}")
-            print(f"(-) Custos Fixos:  R$ {oper or 0:.2f}")
+            print(f"(-) Custo Gateway: R$ {gate:.2f}")
+            print(f"(-) Custos Fixos:  R$ {oper:.2f}")
             print(f"--------------------------------")
             print(f"LUCRO LÍQUIDO REAL: R$ {lucro_liquido:.2f}")
         
