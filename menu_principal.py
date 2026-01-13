@@ -10,6 +10,7 @@ def exibir_menu():
         print("[3] Simular Preço de Corrida (Dinâmicas)")
         print("[4] Relatório de Repasse (Pagamento)")
         print("[5] Dashboard Financeiro (Lucro Líquido)")
+        print("[6] Gerar Recibo de Corrida")
         print("[0] Sair")
         print("="*40)
         
@@ -25,6 +26,8 @@ def exibir_menu():
             os.system('python relatorio_repasse.py')
         elif opcao == '5':
             os.system('python dashboard_financeiro.py')
+        elif opcao == '6':
+            os.system('python gerar_recibo.py')
         elif opcao == '0':
             print("Saindo... TKX operando com sucesso!")
             break
