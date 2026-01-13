@@ -1,46 +1,56 @@
 import sqlite3
 from datetime import datetime
 
-def gerar_recibo_texto(motorista_id, distancia_km, valor_total):
+def gerar_recibo_detalhado():
     conn = sqlite3.connect('tkx_franca.db')
     cursor = conn.cursor()
 
-    # Busca dados do motorista para o recibo
-    cursor.execute("SELECT nome, veiculo_modelo, placa FROM motoristas_cadastro WHERE id = ?", (motorista_id,))
+    print("\n--- EMISSÃO DE RECIBO TKX ---")
+    m_id = input("ID do Motorista: ")
+    partida = input("Local de Partida: ")
+    h_partida = input("Horário de Partida (HH:MM): ")
+    chegada = input("Local de Chegada: ")
+    h_chegada = input("Horário de Chegada (HH:MM): ")
+    km = input("KM Percorrido: ")
+    tempo = input("Tempo Total (ex: 15 min): ")
+    valor = float(input("Valor Total (R$): "))
+
+    # Busca dados do motorista
+    cursor.execute("SELECT nome, veiculo_modelo, placa FROM motoristas_cadastro WHERE id = ?", (m_id,))
     motorista = cursor.fetchone()
-    
-    nome_m, carro, placa = motorista if motorista else ("Motorista TKX", "Veículo Padrão", "---")
+    nome_m, carro, placa = motorista if motorista else ("Motorista TKX", "Veículo", "---")
 
-    data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+    data_atual = datetime.now().strftime('%d/%m/%Y')
 
-    recibo = f"""
+    recibo_texto = f"""
 ========================================
          RECIBO DE VIAGEM - TKX
 ========================================
-DATA/HORA: {data_atual}
-DISTÂNCIA: {distancia_km} KM
+DATA: {data_atual}
+----------------------------------------
+PARTIDA: {h_partida} - {partida}
+CHEGADA: {h_chegada} - {chegada}
+----------------------------------------
+TEMPO TOTAL: {tempo}
+DISTÂNCIA:   {km} KM
 ----------------------------------------
 MOTORISTA: {nome_m}
-VEÍCULO:   {carro}
-PLACA:     {placa}
+VEÍCULO:   {carro} ({placa})
 ----------------------------------------
-VALOR TOTAL: R$ {valor_total:.2f}
+VALOR TOTAL: R$ {valor:.2f}
 ----------------------------------------
    Obrigado por viajar com a TKX!
-   Sua mobilidade em Franca e região.
 ========================================
     """
     
-    nome_arquivo = f"recibo_{datetime.now().strftime('%H%M%S')}.txt"
-    with open(nome_arquivo, "w", encoding="utf-8") as f:
-        f.write(recibo)
+    # Salva em arquivo
+    nome_arq = f"recibo_{datetime.now().strftime('%H%M%S')}.txt"
+    with open(nome_arq, "w", encoding="utf-8") as f:
+        f.write(recibo_texto)
     
-    print(recibo)
-    print(f"✅ Recibo salvo como: {nome_arquivo}")
+    print(recibo_texto)
+    print(f"✅ Recibo salvo: {nome_arq}")
     conn.close()
 
 if __name__ == "__main__":
-    m_id = input("ID do Motorista: ")
-    dist = float(input("Distância (KM): "))
-    val = float(input("Valor Cobrado (R$): "))
-    gerar_recibo_texto(m_id, dist, val)
+    gerar_recibo_detalhado()
