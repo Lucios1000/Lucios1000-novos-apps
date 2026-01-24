@@ -4,7 +4,7 @@ import {
   DollarSign, Car, TrendingUp, MapPin, Users, Target, 
   Calculator, AlertTriangle, CheckCircle2, Building2,
   ShieldCheck, Save, FolderOpen, Trash2, RefreshCw, Clock, Info, Download,
-  ToggleLeft, ToggleRight, Table as TableIcon, Database, ChevronLeft, ChevronRight, FileCode
+  ToggleLeft, ToggleRight, Table as TableIcon, Database, ChevronLeft, ChevronRight, FileCode, Globe
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area
@@ -13,6 +13,7 @@ import {
 interface InitialPlanningTabProps {
   currentParams: SimulationParams;
   updateCurrentParam: (key: keyof SimulationParams, value: number) => void;
+  worldMode?: 'Virtual' | 'Real';
 }
 
 // Dados de demonstração para preenchimento automático de parâmetros técnicos
@@ -48,7 +49,7 @@ export const calculateTechnicalTicket = (
   return Math.max(minFare, cost * dynamicFactor);
 };
 
-export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentParams, updateCurrentParam }) => {
+export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentParams, updateCurrentParam, worldMode = 'Virtual' }) => {
   // --- Estado Local para Inputs Estratégicos ---
   const [ufs, setUfs] = useState<{ id: number; sigla: string; nome: string }[]>([]);
   const [cities, setCities] = useState<{ id: number; nome: string }[]>([]);
@@ -135,7 +136,8 @@ export const InitialPlanningTab: React.FC<InitialPlanningTabProps> = ({ currentP
   const itemsPerPage = 10;
 
   const downloadSqlSchema = () => {
-    const sqlContent = `-- 1. Tabela de Motoristas
+    const sqlContent = `-- SCHEMA SQL - MUNDO ${worldMode.toUpperCase()} - TKX FRANCA
+-- 1. Tabela de Motoristas
 CREATE TABLE IF NOT EXISTS motoristas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
@@ -201,7 +203,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'schema_tkx.sql';
+    link.download = `schema_tkx_${worldMode.toLowerCase()}.sql`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -525,6 +527,17 @@ CREATE TABLE IF NOT EXISTS clientes (
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+      {/* Indicador de Mundo */}
+      <div className={`p-4 rounded-xl border flex items-center gap-3 ${worldMode === 'Real' ? 'bg-green-900/20 border-green-500/50' : 'bg-blue-900/20 border-blue-500/50'}`}>
+        <div className={`p-2 rounded-lg ${worldMode === 'Real' ? 'bg-green-500 text-slate-950' : 'bg-blue-500 text-white'}`}>
+          {worldMode === 'Real' ? <Database className="w-5 h-5" /> : <Globe className="w-5 h-5" />}
+        </div>
+        <div>
+          <h3 className={`text-sm font-black uppercase ${worldMode === 'Real' ? 'text-green-400' : 'text-blue-400'}`}>Planejamento - Mundo {worldMode}</h3>
+          <p className="text-xs text-slate-400">Os dados definidos aqui serão salvos exclusivamente no banco de dados do modo <strong>{worldMode}</strong>.</p>
+        </div>
+      </div>
+
       {/* BARRA DE PRESETS */}
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -1286,7 +1299,7 @@ CREATE TABLE IF NOT EXISTS clientes (
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-100">Simulação de Histórico (SQL Preview)</h3>
-              <p className="text-xs text-slate-400">Geração de dados fictícios para a tabela <code>historico_corridas</code> baseada nos parâmetros acima.</p>
+              <p className="text-xs text-slate-400">Geração de dados para a tabela <code>historico_corridas</code> do <strong>Mundo {worldMode}</strong>.</p>
             </div>
           </div>
           <div className="flex gap-2">

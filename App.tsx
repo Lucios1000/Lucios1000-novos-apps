@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, Suspense, lazy } from 'react';
-import { MapPin, Clock, Zap, Wallet, Users, Car, Briefcase, TrendingUp, DollarSign, Activity, Target } from 'lucide-react';
+import { MapPin, Clock, Zap, Wallet, Users, Car, Briefcase, TrendingUp, DollarSign, Activity, Target, Globe, Database, Save, Trash2, FolderOpen } from 'lucide-react';
 import Layout from './components/Layout';
 import SnapshotModal from './components/SnapshotModal';
 const ComparisonTab = React.lazy(() => import('./components/ComparisonTab'));
@@ -117,6 +117,7 @@ const MKT_SLIDERS: Array<{
 }> = [
   { label: 'Despesas Básicas', paramKey: 'fixedCosts', min: 0, max: 50000, step: 100 },
   { label: 'Marketing (R$)', paramKey: 'marketingMonthly', min: 0, max: 50000, step: 100 },
+  { label: 'Taxa de Tecnologia (% do GMV)', paramKey: 'techFeePct', min: 0, max: 10, step: 0.1 },
   { label: 'Marketing Mídia OFF Mensal (R$)', paramKey: 'mktMensalOff', min: 0, max: 10000, step: 100 },
   { label: 'Adesão Turbo (R$)', paramKey: 'adesaoTurbo', min: 0, max: 10000, step: 100 },
   { label: 'Tráfego Pago (R$)', paramKey: 'trafegoPago', min: 0, max: 10000, step: 100 },
@@ -182,7 +183,13 @@ const DRIVER_PROFILES = [
   { name: 'Part-Time', count: 118, desc: 'Horários de pico (Reforço)', color: '#eab308' },
   { name: 'Esporádicos', count: 89, desc: 'Noites/Fim de semana/Eventos', color: '#3b82f6' },
 ];
-const App: React.FC = () => {
+
+interface DashboardProps {
+  worldMode: 'Virtual' | 'Real';
+  toggleWorld: () => void;
+}
+
+const DashboardContent: React.FC<DashboardProps> = ({ worldMode, toggleWorld }) => {
   const [modo, setModo] = useState<'Simulação' | 'Real'>('Simulação');
   const {
     activeTab,
@@ -291,6 +298,128 @@ const App: React.FC = () => {
     setCampaignsSuspendedMap(prev => ({ ...prev, [scenario]: false }));
   };
 
+  // --- Presets de Marketing ---
+  const [marketingPresets, setMarketingPresets] = useState<any[]>([]);
+  const [selectedMarketingPresetId, setSelectedMarketingPresetId] = useState<string>('');
+  const [comparePresetId1, setComparePresetId1] = useState<string>('');
+  const [comparePresetId2, setComparePresetId2] = useState<string>('');
+
+  // --- Presets de Parametrização ---
+  const [paramPresets, setParamPresets] = useState<any[]>([]);
+  const [selectedParamPresetId, setSelectedParamPresetId] = useState<string>('');
+  const [compareParamPresetId1, setCompareParamPresetId1] = useState<string>('');
+  const [compareParamPresetId2, setCompareParamPresetId2] = useState<string>('');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('tkx_param_presets');
+    if (saved) {
+      try { setParamPresets(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  const saveParamPreset = () => {
+    const name = prompt('Nome do Preset de Parametrização (ex: Cenário Expansão):');
+    if (!name?.trim()) return;
+
+    const newPreset = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      date: Date.now(),
+      params: {
+        initialInvestment: currentParams.initialInvestment,
+        activeDrivers: currentParams.activeDrivers,
+        driverAdditionMonthly: currentParams.driverAdditionMonthly,
+        avgFare: currentParams.avgFare,
+        ridesPerUserMonth: currentParams.ridesPerUserMonth,
+        userGrowth: currentParams.userGrowth,
+        custoComercialMkt: currentParams.custoComercialMkt,
+      }
+    };
+
+    const updated = [...paramPresets, newPreset];
+    setParamPresets(updated);
+    localStorage.setItem('tkx_param_presets', JSON.stringify(updated));
+    setSelectedParamPresetId(newPreset.id);
+  };
+
+  const loadParamPreset = (id: string) => {
+    const preset = paramPresets.find(p => p.id === id);
+    if (!preset) {
+        setSelectedParamPresetId('');
+        return;
+    }
+
+    Object.entries(preset.params).forEach(([key, value]) => {
+      updateCurrentParam(key as any, value as number);
+    });
+    setSelectedParamPresetId(id);
+  };
+
+  const deleteParamPreset = () => {
+    if (!selectedParamPresetId || !confirm('Tem certeza que deseja excluir este preset?')) return;
+    const updated = paramPresets.filter(p => p.id !== selectedParamPresetId);
+    setParamPresets(updated);
+    localStorage.setItem('tkx_param_presets', JSON.stringify(updated));
+    setSelectedParamPresetId('');
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('tkx_marketing_presets');
+    if (saved) {
+      try { setMarketingPresets(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  const saveMarketingPreset = () => {
+    const name = prompt('Nome do Preset de Marketing (ex: Estratégia Agressiva):');
+    if (!name?.trim()) return;
+
+    const newPreset = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      date: Date.now(),
+      params: {
+        fixedCosts: currentParams.fixedCosts,
+        marketingMonthly: currentParams.marketingMonthly,
+        techFeePct: currentParams.techFeePct,
+        mktMensalOff: currentParams.mktMensalOff,
+        adesaoTurbo: currentParams.adesaoTurbo,
+        trafegoPago: currentParams.trafegoPago,
+        parceriasBares: currentParams.parceriasBares,
+        indiqueGanhe: currentParams.indiqueGanhe,
+        eliteDriversSemestral: currentParams.eliteDriversSemestral,
+        fidelidadePassageirosAnual: currentParams.fidelidadePassageirosAnual,
+        reservaOperacionalGMV: currentParams.reservaOperacionalGMV,
+      }
+    };
+
+    const updated = [...marketingPresets, newPreset];
+    setMarketingPresets(updated);
+    localStorage.setItem('tkx_marketing_presets', JSON.stringify(updated));
+    setSelectedMarketingPresetId(newPreset.id);
+  };
+
+  const loadMarketingPreset = (id: string) => {
+    const preset = marketingPresets.find(p => p.id === id);
+    if (!preset) {
+        setSelectedMarketingPresetId('');
+        return;
+    }
+
+    Object.entries(preset.params).forEach(([key, value]) => {
+      updateCurrentParam(key as any, value as number);
+    });
+    setSelectedMarketingPresetId(id);
+  };
+
+  const deleteMarketingPreset = () => {
+    if (!selectedMarketingPresetId || !confirm('Tem certeza que deseja excluir este preset?')) return;
+    const updated = marketingPresets.filter(p => p.id !== selectedMarketingPresetId);
+    setMarketingPresets(updated);
+    localStorage.setItem('tkx_marketing_presets', JSON.stringify(updated));
+    setSelectedMarketingPresetId('');
+  };
+
   // --- MOTOR DE CÁLCULO HÍBRIDO (Tabela Operacional + Parâmetros Financeiros) ---
   // Usa os volumes da tabela OPERATIONAL_GROWTH e aplica os custos/tarifas dos sliders
   const displayProjections = useMemo(() => {
@@ -327,7 +456,7 @@ const App: React.FC = () => {
       // Custos Fixos e Marketing
       const fixedCosts = currentParams.fixedCosts;
       const marketing = currentParams.marketingMonthly + currentParams.mktMensalOff + currentParams.trafegoPago;
-      const tech = currentParams.techMonthly;
+      const tech = (grossRevenue * (currentParams.techFeePct || 0)) / 100;
       
       // Fidelidade e Campanhas
       const cashback = (currentParams.reservaOperacionalGMV / 100) * takeRateRevenue; // % do Take Rate
@@ -422,6 +551,67 @@ const App: React.FC = () => {
     });
     return { y1: calcYear(y1), y2: calcYear(y2), y3: calcYear(y3) };
   }, [displayProjections]);
+
+  // Função auxiliar para calcular métricas rápidas de um conjunto de parâmetros (para comparação)
+  const calculateMetricsForParams = (params: any) => {
+    let accumulatedProfit = -params.initialInvestment;
+    const baseDriversM1 = 5;
+    const sliderDrivers = params.activeDrivers;
+    const scaleFactor = baseDriversM1 > 0 ? sliderDrivers / baseDriversM1 : 1;
+
+    let totalProfit = 0;
+    let totalRevenue = 0;
+    let totalMarketingCost = 0;
+    const semesters = Array.from({ length: 6 }, () => ({ profit: 0 }));
+    let breakEvenSemester = -1;
+
+    OPERATIONAL_GROWTH.forEach((op) => {
+      const MAX_USERS_CAP = 30000;
+      let users = Math.round(op.users * scaleFactor);
+      if (users > MAX_USERS_CAP) users = MAX_USERS_CAP;
+
+      const ridesPerUser = params.ridesPerUserMonth || 4.2;
+      const rides = Math.round(users * ridesPerUser);
+
+      const avgFare = params.avgFare || 18.5;
+      const grossRevenue = Number((rides * avgFare).toFixed(2));
+      const takeRateRevenue = grossRevenue * 0.15;
+
+      const taxes = grossRevenue * 0.06;
+      const variableCosts = rides * 0.50;
+      const fixedCosts = params.fixedCosts;
+      const marketing = params.marketingMonthly + params.mktMensalOff + params.trafegoPago;
+      const tech = (grossRevenue * (params.techFeePct || 0)) / 100;
+      const cashback = (params.reservaOperacionalGMV / 100) * takeRateRevenue;
+      const campaigns = params.adesaoTurbo + params.parceriasBares + params.indiqueGanhe;
+
+      const isSemestral = (op.month % 6) === 0;
+      const isAnual = (op.month % 12) === 0;
+      const eliteDriversCost = isSemestral ? params.eliteDriversSemestral : 0;
+      const fidelidadePassageirosCost = isAnual ? params.fidelidadePassageirosAnual : 0;
+
+      const totalMarketing = marketing + campaigns;
+      const totalTech = tech;
+      const totalCosts = taxes + variableCosts + fixedCosts + totalMarketing + totalTech + cashback + eliteDriversCost + fidelidadePassageirosCost;
+      const netProfit = takeRateRevenue - totalCosts;
+
+      accumulatedProfit += netProfit;
+      if (breakEvenSemester === -1 && accumulatedProfit > 0) {
+        breakEvenSemester = Math.ceil(op.month / 6);
+      }
+
+      totalProfit += netProfit;
+      totalRevenue += grossRevenue;
+      totalMarketingCost += totalMarketing;
+
+      const semIdx = Math.ceil(op.month / 6) - 1;
+      if (semesters[semIdx]) {
+        semesters[semIdx].profit += netProfit;
+      }
+    });
+
+    return { totalProfit, totalRevenue, totalMarketingCost, semesters, breakEvenSemester };
+  };
 
   // Handlers para Snapshots
   const handleSaveSnapshot = (name: string, description: string) => {
@@ -695,6 +885,173 @@ const App: React.FC = () => {
 
   const renderParams = () => (
     <div className="space-y-6">
+      {/* Barra de Presets de Parametrização */}
+      <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                  <FolderOpen className="w-5 h-5" />
+              </div>
+              <div className="flex-1 sm:flex-none">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Carregar Preset</label>
+                  <select
+                      value={selectedParamPresetId}
+                      onChange={(e) => loadParamPreset(e.target.value)}
+                      className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-slate-200 outline-none focus:border-blue-500"
+                  >
+                      <option value="">Selecione um preset...</option>
+                      {paramPresets.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                  </select>
+              </div>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                  onClick={saveParamPreset}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                  <Save className="w-4 h-4" /> Salvar Atual
+              </button>
+              {selectedParamPresetId && (
+                  <button
+                      onClick={deleteParamPreset}
+                      className="px-3 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-400 rounded-lg transition-colors"
+                      title="Excluir preset selecionado"
+                  >
+                      <Trash2 className="w-4 h-4" />
+                  </button>
+              )}
+          </div>
+      </div>
+
+      {/* Comparador de Estratégias (Parametrização) */}
+      <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+          <div className="flex items-center gap-2 mb-4">
+              <Activity className="w-4 h-4 text-blue-400" />
+              <h4 className="text-xs font-black uppercase text-slate-400">Comparador de Estratégias (36 Meses)</h4>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Lado A */}
+              <div className="space-y-3">
+                  <select 
+                      value={compareParamPresetId1} 
+                      onChange={(e) => setCompareParamPresetId1(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-blue-500"
+                  >
+                      <option value="">Atual (Editando)</option>
+                      {paramPresets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {(() => {
+                      const params1 = compareParamPresetId1 
+                          ? { ...currentParams, ...paramPresets.find(p => p.id === compareParamPresetId1)?.params } 
+                          : currentParams;
+                      const metrics1 = calculateMetricsForParams(params1);
+                      return (
+                          <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 space-y-2">
+                              <div className="flex justify-between text-xs">
+                                  <span className="text-slate-400">Lucro Total</span>
+                                  <span className={`font-bold ${metrics1.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {formatCurrency(metrics1.totalProfit)}
+                                  </span>
+                              </div>
+                              <div className="pt-2 mt-2 border-t border-slate-700/50">
+                                  <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[9px] uppercase text-slate-500 font-bold">Resultado Semestral</span>
+                                      {metrics1.breakEvenSemester !== -1 && (
+                                          <div className="flex items-center gap-1 text-[8px] text-green-400 bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/20 cursor-help" title="Momento em que o lucro acumulado se torna positivo (Payback)">
+                                              <span>★</span> Payback
+                                          </div>
+                                      )}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                      {metrics1.semesters.map((s, i) => (
+                                          <div key={i} className={`flex justify-between text-[9px] items-center ${metrics1.breakEvenSemester === i + 1 ? 'bg-green-900/30 -mx-1 px-1 rounded border border-green-500/30' : ''}`}>
+                                              <span className={`flex items-center gap-1 ${metrics1.breakEvenSemester === i + 1 ? 'text-green-400 font-bold' : 'text-slate-400'}`}>
+                                                  S{i+1}
+                                                  {metrics1.breakEvenSemester === i + 1 && <span title="Break-even (Payback)">★</span>}
+                                              </span>
+                                              <span className={`font-mono ${s.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(s.profit)}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                      );
+                  })()}
+              </div>
+
+              {/* VS */}
+              <div className="flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-black text-slate-500">VS</div>
+              </div>
+
+              {/* Lado B */}
+              <div className="space-y-3">
+                  <select 
+                      value={compareParamPresetId2} 
+                      onChange={(e) => setCompareParamPresetId2(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-blue-500"
+                  >
+                      <option value="">Selecione para comparar...</option>
+                      {paramPresets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {compareParamPresetId2 ? (() => {
+                      const params2 = { ...currentParams, ...paramPresets.find(p => p.id === compareParamPresetId2)?.params };
+                      const metrics2 = calculateMetricsForParams(params2);
+                      
+                      const params1 = compareParamPresetId1 
+                          ? { ...currentParams, ...paramPresets.find(p => p.id === compareParamPresetId1)?.params } 
+                          : currentParams;
+                      const metrics1 = calculateMetricsForParams(params1);
+                      
+                      const profitDiff = metrics2.totalProfit - metrics1.totalProfit;
+                      
+                      return (
+                          <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 space-y-2">
+                              <div className="flex justify-between text-xs">
+                                  <span className="text-slate-400">Lucro Total</span>
+                                  <div className="text-right">
+                                      <div className={`font-bold ${metrics2.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                          {formatCurrency(metrics2.totalProfit)}
+                                      </div>
+                                      <div className={`text-[9px] ${profitDiff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                          {profitDiff >= 0 ? '+' : ''}{formatCurrency(profitDiff)}
+                                      </div>
+                                  </div>
+                              </div>
+                              <div className="pt-2 mt-2 border-t border-slate-700/50">
+                                  <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[9px] uppercase text-slate-500 font-bold">Resultado Semestral</span>
+                                      {metrics2.breakEvenSemester !== -1 && (
+                                          <div className="flex items-center gap-1 text-[8px] text-green-400 bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/20 cursor-help" title="Momento em que o lucro acumulado se torna positivo (Payback)">
+                                              <span>★</span> Payback
+                                          </div>
+                                      )}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                      {metrics2.semesters.map((s, i) => (
+                                          <div key={i} className={`flex justify-between text-[9px] items-center ${metrics2.breakEvenSemester === i + 1 ? 'bg-green-900/30 -mx-1 px-1 rounded border border-green-500/30' : ''}`}>
+                                              <span className={`flex items-center gap-1 ${metrics2.breakEvenSemester === i + 1 ? 'text-green-400 font-bold' : 'text-slate-400'}`}>
+                                                  S{i+1}
+                                                  {metrics2.breakEvenSemester === i + 1 && <span title="Break-even (Payback)">★</span>}
+                                              </span>
+                                              <span className={`font-mono ${s.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(s.profit)}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                      );
+                  })() : (
+                      <div className="h-full flex items-center justify-center text-xs text-slate-600 italic border border-dashed border-slate-800 rounded-lg p-4">
+                          Selecione um preset
+                      </div>
+                  )}
+              </div>
+          </div>
+      </div>
+
       <h3 className="text-sm font-black uppercase text-yellow-500">Parâmetros principais</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {PARAM_SLIDERS.map((p) => (
@@ -924,7 +1281,7 @@ const App: React.FC = () => {
   const renderMarketing = () => {
     const data = [
       { name: 'Marketing', value: currentParams.marketingMonthly || 0 },
-      { name: 'Tech', value: currentParams.techMonthly || 0 },
+      { name: 'Tech', value: (displayProjections[0].grossRevenue * (currentParams.techFeePct || 0)) / 100 },
       { name: 'Adesão Turbo', value: currentParams.adesaoTurbo || 0 },
       { name: 'Tráfego Pago', value: currentParams.trafegoPago || 0 },
       { name: 'Parcerias', value: currentParams.parceriasBares || 0 },
@@ -933,6 +1290,194 @@ const App: React.FC = () => {
     const colors = ['#0b1220', '#f59e0b', '#eab308', '#e5e7eb', '#ef4444', '#fbbf24'];
     return (
       <div className="space-y-6">
+        {/* Barra de Presets de Marketing */}
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
+                    <FolderOpen className="w-5 h-5" />
+                </div>
+                <div className="flex-1 sm:flex-none">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Carregar Preset</label>
+                    <select
+                        value={selectedMarketingPresetId}
+                        onChange={(e) => loadMarketingPreset(e.target.value)}
+                        className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-slate-200 outline-none focus:border-pink-500"
+                    >
+                        <option value="">Selecione um preset...</option>
+                        {marketingPresets.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                    onClick={saveMarketingPreset}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-xs font-bold transition-colors"
+                >
+                    <Save className="w-4 h-4" /> Salvar Atual
+                </button>
+                {selectedMarketingPresetId && (
+                    <button
+                        onClick={deleteMarketingPreset}
+                        className="px-3 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-400 rounded-lg transition-colors"
+                        title="Excluir preset selecionado"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
+        </div>
+
+        {/* Comparador de Estratégias */}
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+            <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-purple-400" />
+                <h4 className="text-xs font-black uppercase text-slate-400">Comparador de Estratégias (36 Meses)</h4>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Lado A */}
+                <div className="space-y-3">
+                    <select 
+                        value={comparePresetId1} 
+                        onChange={(e) => setComparePresetId1(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-purple-500"
+                    >
+                        <option value="">Atual (Editando)</option>
+                        {marketingPresets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {(() => {
+                        const params1 = comparePresetId1 
+                            ? { ...currentParams, ...marketingPresets.find(p => p.id === comparePresetId1)?.params } 
+                            : currentParams;
+                        const metrics1 = calculateMetricsForParams(params1);
+                        return (
+                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">Lucro Total</span>
+                                    <span className={`font-bold ${metrics1.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {formatCurrency(metrics1.totalProfit)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">Invest. MKT</span>
+                                    <span className="text-slate-200">{formatCurrency(metrics1.totalMarketingCost)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">ROI (MKT)</span>
+                                    <span className="text-purple-400 font-bold">
+                                        {metrics1.totalMarketingCost > 0 ? ((metrics1.totalProfit / metrics1.totalMarketingCost) * 100).toFixed(0) : 0}%
+                                    </span>
+                                </div>
+                                <div className="pt-2 mt-2 border-t border-slate-700/50">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[9px] uppercase text-slate-500 font-bold">Resultado Semestral</span>
+                                        {metrics1.breakEvenSemester !== -1 && (
+                                            <div className="flex items-center gap-1 text-[8px] text-green-400 bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/20 cursor-help" title="Momento em que o lucro acumulado se torna positivo (Payback)">
+                                                <span>★</span> Payback
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                        {metrics1.semesters.map((s, i) => (
+                                            <div key={i} className={`flex justify-between text-[9px] items-center ${metrics1.breakEvenSemester === i + 1 ? 'bg-green-900/30 -mx-1 px-1 rounded border border-green-500/30' : ''}`}>
+                                                <span className={`flex items-center gap-1 ${metrics1.breakEvenSemester === i + 1 ? 'text-green-400 font-bold' : 'text-slate-400'}`}>
+                                                    S{i+1}
+                                                    {metrics1.breakEvenSemester === i + 1 && <span title="Break-even (Payback)">★</span>}
+                                                </span>
+                                                <span className={`font-mono ${s.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(s.profit)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                {/* VS */}
+                <div className="flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-black text-slate-500">VS</div>
+                </div>
+
+                {/* Lado B */}
+                <div className="space-y-3">
+                    <select 
+                        value={comparePresetId2} 
+                        onChange={(e) => setComparePresetId2(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-purple-500"
+                    >
+                        <option value="">Selecione para comparar...</option>
+                        {marketingPresets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {comparePresetId2 ? (() => {
+                        const params2 = { ...currentParams, ...marketingPresets.find(p => p.id === comparePresetId2)?.params };
+                        const metrics2 = calculateMetricsForParams(params2);
+                        
+                        // Calculate diffs against Preset 1 (or Current)
+                        const params1 = comparePresetId1 
+                            ? { ...currentParams, ...marketingPresets.find(p => p.id === comparePresetId1)?.params } 
+                            : currentParams;
+                        const metrics1 = calculateMetricsForParams(params1);
+                        
+                        const profitDiff = metrics2.totalProfit - metrics1.totalProfit;
+                        
+                        return (
+                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">Lucro Total</span>
+                                    <div className="text-right">
+                                        <div className={`font-bold ${metrics2.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {formatCurrency(metrics2.totalProfit)}
+                                        </div>
+                                        <div className={`text-[9px] ${profitDiff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {profitDiff >= 0 ? '+' : ''}{formatCurrency(profitDiff)}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">Invest. MKT</span>
+                                    <span className="text-slate-200">{formatCurrency(metrics2.totalMarketingCost)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">ROI (MKT)</span>
+                                    <span className="text-purple-400 font-bold">
+                                        {metrics2.totalMarketingCost > 0 ? ((metrics2.totalProfit / metrics2.totalMarketingCost) * 100).toFixed(0) : 0}%
+                                    </span>
+                                </div>
+                                <div className="pt-2 mt-2 border-t border-slate-700/50">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[9px] uppercase text-slate-500 font-bold">Resultado Semestral</span>
+                                        {metrics2.breakEvenSemester !== -1 && (
+                                            <div className="flex items-center gap-1 text-[8px] text-green-400 bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/20 cursor-help" title="Momento em que o lucro acumulado se torna positivo (Payback)">
+                                                <span>★</span> Payback
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                        {metrics2.semesters.map((s, i) => (
+                                            <div key={i} className={`flex justify-between text-[9px] items-center ${metrics2.breakEvenSemester === i + 1 ? 'bg-green-900/30 -mx-1 px-1 rounded border border-green-500/30' : ''}`}>
+                                                <span className={`flex items-center gap-1 ${metrics2.breakEvenSemester === i + 1 ? 'text-green-400 font-bold' : 'text-slate-400'}`}>
+                                                    S{i+1}
+                                                    {metrics2.breakEvenSemester === i + 1 && <span title="Break-even (Payback)">★</span>}
+                                                </span>
+                                                <span className={`font-mono ${s.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(s.profit)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })() : (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-600 italic border border-dashed border-slate-800 rounded-lg p-4">
+                            Selecione um preset
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+
         <div className="space-y-6">
           <h3 className="text-sm font-black uppercase text-yellow-500">Sliders de Marketing</h3>
           {/* Controle de Campanhas */}
@@ -969,7 +1514,7 @@ const App: React.FC = () => {
             )}
           </div>
           {(() => {
-            const primaryKeys = new Set<string>(['fixedCosts','marketingMonthly']);
+            const primaryKeys = new Set<string>(['fixedCosts','marketingMonthly', 'techFeePct']);
             const primary = (MKT_SLIDERS || []).filter(s => primaryKeys.has(String(s.paramKey)));
             const rest = (MKT_SLIDERS || []).filter(s => !primaryKeys.has(String(s.paramKey)));
             return (
@@ -979,7 +1524,9 @@ const App: React.FC = () => {
                     <div key={s.paramKey} className="space-y-2">
                       <div className="flex justify-between text-[10px] uppercase font-black text-slate-400">
                         <span>{s.label}</span>
-                        <span className="text-yellow-400 text-sm">{formatCurrency((currentParams as any)[s.paramKey])}</span>
+                        <span className="text-yellow-400 text-sm">
+                          {s.paramKey === 'techFeePct' ? `${((currentParams as any)[s.paramKey] || 0).toFixed(1)}%` : formatCurrency((currentParams as any)[s.paramKey])}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1074,6 +1621,29 @@ const App: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Gráfico de Composição da Receita (Take Rate) */}
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <h4 className="text-[10px] uppercase text-slate-400 font-black mb-4">Composição da Receita da Plataforma (Mês 1)</h4>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={(() => {
+                  const m1 = displayProjections[0];
+                  return [
+                    { name: 'Tecnologia', value: m1.totalTech || 0, fill: '#8b5cf6' },
+                    { name: 'Marketing', value: m1.totalMarketing || 0, fill: '#ec4899' },
+                    { name: 'Custos Fixos', value: m1.fixedCosts || 0, fill: '#6366f1' },
+                    { name: 'Impostos', value: m1.taxes || 0, fill: '#f43f5e' },
+                    { name: 'Outros Custos', value: (m1.variableCosts || 0) + (m1.cashback || 0) + (m1.eliteDriversCost || 0) + (m1.fidelidadePassageirosCost || 0), fill: '#d97706' },
+                    { name: 'Lucro Líquido', value: Math.max(0, m1.netProfit || 0), fill: '#22c55e' },
+                  ].filter(item => item.value > 0);
+                })()} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={3}>
+                  {data.map((_, i) => <Cell key={`cell-comp-${i}`} fill={colors[i % colors.length]} stroke="#0b1220" strokeWidth={1.2} />)}
+                </Pie>
+                <Tooltip content={<DarkTooltip formatter={(value) => formatCurrency(value as number)} />} cursor={{ fill: 'transparent', stroke: 'transparent' }} />
+                <Legend content={<NeutralLegend />} verticalAlign="bottom" height={36} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <div className="text-[10px] uppercase text-slate-400 font-black mb-4">Distribuição de Verba</div>
             <ResponsiveContainer width="100%" height={280}>
@@ -1087,27 +1657,6 @@ const App: React.FC = () => {
                 <Legend content={<NeutralLegend />} verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <div className="text-[10px] uppercase text-slate-400 font-black mb-2">Custos Mensais</div>
-            <div className="grid grid-cols-2 gap-4 text-slate-200">
-              <div>
-                <div className="text-[10px] text-slate-400 uppercase font-bold">Fixos</div>
-                <div className="text-xl font-black">{formatCurrency(currentParams.fixedCosts)}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-slate-400 uppercase font-bold">Tecnologia</div>
-                <div className="text-xl font-black">{formatCurrency(currentParams.techMonthly)}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-slate-400 uppercase font-bold">Marketing</div>
-                <div className="text-xl font-black">{formatCurrency(currentParams.marketingMonthly)}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-slate-400 uppercase font-bold">Campanhas</div>
-                <div className="text-xl font-black">{formatCurrency(currentParams.adesaoTurbo + currentParams.trafegoPago + currentParams.parceriasBares + currentParams.indiqueGanhe)}</div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2773,7 +3322,7 @@ const App: React.FC = () => {
       case 16:
         return <ImplementationTab currentParams={currentParams} />;
       case 17:
-        return <InitialPlanningTab currentParams={currentParams} updateCurrentParam={updateCurrentParam} />;
+        return <InitialPlanningTab currentParams={currentParams} updateCurrentParam={updateCurrentParam} worldMode={worldMode} />;
       case 18:
           return <SensitivityAnalysisTab
             currentParams={currentParams}
@@ -2804,11 +3353,35 @@ case 19:
         onExportPDF={handleExportPDF}
         onExportExcel={handleExportExcel}
       >
-        <div className="space-y-5 text-white">
+        <div className="space-y-5 text-white relative">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between p-5 rounded-xl bg-gradient-to-br from-slate-900/70 to-slate-800/50 border border-slate-700/40 shadow-lg">
             <div>
               <h1 className="text-2xl font-black tracking-tight bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-500 bg-clip-text text-transparent">TKX Franca Dashboard</h1>
-              <p className="text-slate-400 text-xs mt-1 font-medium">Cenário: <span className="text-yellow-400 font-bold">{SCENARIO_LABEL[scenario]}</span></p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-slate-400 text-xs font-medium">Cenário: <span className="text-yellow-400 font-bold">{SCENARIO_LABEL[scenario]}</span></p>
+                <span className="text-slate-600">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400">Mundo:</span>
+                  <span className={`text-xs font-black px-2 py-0.5 rounded uppercase ${worldMode === 'Real' ? 'bg-green-500 text-slate-950' : 'bg-blue-500 text-white'}`}>
+                    {worldMode}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Botão de Troca de Mundo */}
+            <div className="absolute top-5 right-5 lg:static lg:top-auto lg:right-auto">
+              <button
+                onClick={toggleWorld}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs uppercase transition-all duration-300 shadow-lg border-2 ${
+                  worldMode === 'Real' 
+                    ? 'bg-green-600 border-green-400 text-white hover:bg-green-500 hover:shadow-green-500/30' 
+                    : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-500 hover:shadow-blue-500/30'
+                }`}
+              >
+                {worldMode === 'Real' ? <Database className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                {worldMode === 'Real' ? 'Mundo Real' : 'Mundo Virtual'}
+              </button>
             </div>
             {activeTab !== 15 && renderScenarioSelector()}
           </div>
@@ -2876,5 +3449,44 @@ case 19:
     </>
   );
 }; // <--- Fecha o componente App
+
+const App: React.FC = () => {
+  const [worldMode, setWorldMode] = useState<'Virtual' | 'Real'>(() => {
+    return (localStorage.getItem('tkx_world_mode') as 'Virtual' | 'Real') || 'Virtual';
+  });
+  const [appKey, setAppKey] = useState(0);
+
+  const toggleWorld = () => {
+    const currentParams = localStorage.getItem('tkx_simulation_params');
+    
+    // Salva o estado do mundo atual
+    if (currentParams) {
+      localStorage.setItem(`tkx_params_${worldMode}`, currentParams);
+    }
+
+    // Determina o novo mundo
+    const nextMode = worldMode === 'Virtual' ? 'Real' : 'Virtual';
+    
+    // Carrega o estado do novo mundo
+    const nextParams = localStorage.getItem(`tkx_params_${nextMode}`);
+    if (nextParams) {
+      localStorage.setItem('tkx_simulation_params', nextParams);
+    } else {
+      // Se não houver dados salvos para o novo mundo, limpa para usar os defaults
+      // ou copia do virtual se for a primeira vez no Real? 
+      // Melhor limpar para garantir separação, o hook useViability carregará defaults.
+      localStorage.removeItem('tkx_simulation_params');
+    }
+
+    // Atualiza estado e força remontagem
+    setWorldMode(nextMode);
+    localStorage.setItem('tkx_world_mode', nextMode);
+    setAppKey(prev => prev + 1);
+  };
+
+  return (
+    <DashboardContent key={appKey} worldMode={worldMode} toggleWorld={toggleWorld} />
+  );
+};
 
 export default App;
