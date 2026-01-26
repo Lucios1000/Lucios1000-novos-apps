@@ -20,6 +20,15 @@ node_modules
 dist
 dist-ssr
 
+# Python
+__pycache__/
+*.pyc
+
+# TKX outputs e dados locais
+outputs/
+data/*.db
+recibo_*.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
